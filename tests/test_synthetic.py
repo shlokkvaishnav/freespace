@@ -138,3 +138,21 @@ def test_rich_scene_end_to_end(tmp_path_factory, tmp_path):
     score = evaluate(pipeline.save(res, tmp_path), gt)
     assert score["precision"] == 1.0 and score["recall"] == 1.0, score
     assert score["unobserved_reported_as_removed"] == 0, score
+
+
+def test_look_next_covers_the_unseen_lamp(synth):
+    """The lamp corner is never seen by the second walk; the suggested views must cover most of it."""
+    cfg = load_config()
+    gt = json.loads((synth / "gt.json").read_text())
+    res = pipeline.run(synth / "before", synth / "after", cfg, vlm="local", T_init=np.array(gt["T_after_before"]))
+    assert res.views, "no view suggested"
+    lamp = np.array(gt["unobserved_in_after"][0]["center"])
+    seen = np.concatenate([v.seen for v in res.views])
+    near_lamp = lambda p: np.linalg.norm(p - lamp, axis=1) < 0.35
+    sa = res.surf_a
+    lamp_unknown = near_lamp(sa.points) & (res.ev_a.state == UNKNOWN)
+    assert lamp_unknown.sum() > 0
+    # views are counted on a 10 cm grid: compare at that resolution
+    cells = lambda p: set(map(tuple, np.floor(p / cfg.nbv.voxel).astype(int)))
+    lamp_cells, seen_cells = cells(sa.points[lamp_unknown]), cells(seen)
+    assert len(lamp_cells & seen_cells) >= 0.5 * len(lamp_cells), (len(lamp_cells & seen_cells), len(lamp_cells))

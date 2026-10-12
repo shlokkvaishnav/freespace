@@ -42,3 +42,15 @@ def test_classify_three_states():
     n_free = np.array([0, 9, 1, 0])
     s = classify(n_hit, n_free, cfg)
     assert list(s) == [UNCHANGED, CHANGED, UNKNOWN, UNKNOWN]
+
+
+def test_learned_fusion_path():
+    """With fusion weights set, classify uses the logistic score; few observations stay UNKNOWN."""
+    cfg = load_config(overrides={"fusion.weights": [-6.953, 6.73, 0.166, 1.947]})
+    n_hit = np.array([10, 0, 0, 1])
+    n_free = np.array([0, 10, 1, 9])
+    hit_res = np.array([0.1, 0.0, 0.0, 0.2])
+    s = classify(n_hit, n_free, cfg, hit_res)
+    # 9 of 10 rays see through: the hand rule says CHANGED, the stricter learned rule does not (score -0.11)
+    assert list(s) == [UNCHANGED, CHANGED, UNKNOWN, UNCHANGED]
+    assert classify(n_hit, n_free, load_config(), hit_res)[3] == CHANGED

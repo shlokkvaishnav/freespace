@@ -131,6 +131,23 @@ recording B ─┘                                 └─ visibility test B→A 
 - **Why numbers from geometry and names from a model?** A VLM can guess the wrong distance. Geometry cannot guess the name. Each part does what it is good at.
 - **Local by default.** No API key, same output each run, and it can run on a robot. Claude is an option for richer language.
 
+## Experiment: does a learned rule beat the hand rule?
+
+The ray test decides with a hand rule: a point is CHANGED when at least 60% of its observations see through it.
+To check this rule, I trained a logistic regression (4 readable weights, PyTorch) on 10 random synthetic room pairs
+(`python -m freespace.train.gen_data data/train`, then `python -m freespace.train.fit_fusion data/train`).
+Features per point: see-through ratio, log(1 + observations), mean depth residual of the hits. Labels come free from
+the object boxes. The threshold is chosen for the best F1 on the training rooms; 4 other rooms are held out.
+
+| | point F1 (held-out rooms) | false-positive rate | shoebox 8 cm move error |
+|---|---|---|---|
+| hand rule (default) | 0.808 | 1.39% | 0.05 m |
+| learned weights `[-6.95, 6.73, 0.17, 1.95]` | 0.812 | 1.29% | 0.09 m |
+
+The learned rule is not clearly better, so the simpler hand rule stays the default (`fusion.weights: []`).
+The weights still teach something: the learned rule wants almost all rays to see through a point, and a hit with
+a large depth residual counts as evidence of change (an object that moved a little).
+
 ## Limits
 
 - Rigid moves only. A folded blanket or an opened door is "removed + added".

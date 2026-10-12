@@ -68,6 +68,8 @@ def facts(ch: Change, scan_a: Scan, floor_h: float, up: np.ndarray, scene) -> di
         out["moved_m"] = round(ch.distance, 2)
         out["turned_deg"] = round(ch.yaw(up))
         out["direction"] = direction_words(ch.after.centroid - ch.before.centroid, scan_a, up)
+        out["motion"] = ch.motion
+        out["turn_alternatives_deg"] = [round(abs(y)) for y in ch.yaw_alternatives]
     return out
 
 
@@ -97,10 +99,25 @@ def height_words(hm: float) -> str:
 def template_sentence(label: str, f: dict) -> str:
     name = f"{f['colour']} {'object' if label == 'unknown object' else label}".strip()
     if f["status"] == "moved":
+        turn = f"{abs(f['turned_deg'])}°"
+        if f.get("turn_alternatives_deg"):
+            alts = " or ".join(f"{a}°" for a in f["turn_alternatives_deg"])
+            turn += f" (or {alts}: its shape looks the same and the texture cannot tell)"
+        motion = f.get("motion")
+        if motion == "hinge":
+            return f"The {name} swung {turn} about one of its edges, like a door opening or closing."
+        if motion == "turn_in_place":
+            return f"The {name} turned {turn} in place."
+        if motion == "slide":
+            return f"The {name} slid {f['moved_m']:.2f} m in a straight line without turning" + (
+                f" ({f['direction']})." if f["direction"] else ".")
         s = f"The {name} moved {f['moved_m']:.2f} m" + (f" {f['direction']}" if f["direction"] else "")
         if abs(f["turned_deg"]) >= 10:
-            s += f" and turned {abs(f['turned_deg'])}°"
+            s += f" and turned {turn}"
         return s + f". It is now {height_words(f['rests_at_height_m'])}."
+    if f["status"] == "modified":
+        return (f"The {name} {height_words(f['rests_at_height_m'])} changed shape: no rigid move explains it "
+                f"(folded, opened or deformed).")
     size = f"about {max(f['size_m']['width'], f['size_m']['height']):.1f} m"
     if f["status"] == "surface_changed":
         return (f"The surface {height_words(f['rests_at_height_m'])} looks different now "

@@ -11,7 +11,8 @@ from .change import CHANGED, UNKNOWN
 
 RED, GREEN, BLUE, GREY = (230, 60, 50), (40, 200, 90), (60, 120, 255), (150, 150, 160)
 PURPLE = (170, 90, 220)
-STATUS_COLOUR = {"removed": RED, "added": GREEN, "moved": BLUE, "surface_changed": PURPLE}
+TEAL = (20, 180, 170)
+STATUS_COLOUR = {"removed": RED, "added": GREEN, "moved": BLUE, "surface_changed": PURPLE, "modified": TEAL}
 
 
 def grid_image(g: np.ndarray) -> np.ndarray:

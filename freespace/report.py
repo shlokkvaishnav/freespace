@@ -121,7 +121,7 @@ table{border-collapse:collapse;width:100%;font-size:12px}td{padding:2px 0}td:las
 <header><h1>What changed in the room?</h1><p id="sub"></p></header>
 <main>
 <div id="view"><div class="toggles" id="toggles"></div>
-<div class="legend"><span class="dot" style="background:#e63c32"></span>removed<span class="dot" style="background:#28c85a"></span>added<span class="dot" style="background:#3c78ff"></span>moved<span class="dot" style="background:#aa5adc"></span>surface changed<span class="dot" style="background:#999aa5"></span>not seen in 2nd scan<span class="dot" style="background:#ff8c00"></span>naive diff</div></div>
+<div class="legend"><span class="dot" style="background:#e63c32"></span>removed<span class="dot" style="background:#28c85a"></span>added<span class="dot" style="background:#3c78ff"></span>moved<span class="dot" style="background:#aa5adc"></span>surface changed<span class="dot" style="background:#14b4aa"></span>modified<span class="dot" style="background:#999aa5"></span>not seen in 2nd scan<span class="dot" style="background:#ff8c00"></span>naive diff</div></div>
 <aside id="side"></aside>
 </main>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>

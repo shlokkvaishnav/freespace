@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import cv2
 import numpy as np
 import open3d as o3d
+import open3d.core as o3c
 
 from .scan import Scan
 
@@ -32,33 +33,37 @@ class Surface:
 
 
 def fuse(scan: Scan, cfg) -> Surface:
+    """TSDF fusion with Open3D's tensor VoxelBlockGrid (the legacy ScalableTSDFVolume
+    returns an empty surface with Open3D 0.20 on macOS arm64)."""
     rc = cfg.recon
-    vol = o3d.pipelines.integration.ScalableTSDFVolume(
-        voxel_length=rc.voxel,
-        sdf_trunc=rc.sdf_trunc,
-        color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8,
+    cpu = o3c.Device("CPU:0")
+    vbg = o3d.t.geometry.VoxelBlockGrid(
+        attr_names=("tsdf", "weight", "color"),
+        attr_dtypes=(o3c.float32, o3c.float32, o3c.float32),
+        attr_channels=((1), (1), (3)),
+        voxel_size=rc.voxel,
+        block_resolution=16,
+        block_count=60000,
+        device=cpu,
     )
+    trunc_mult = rc.sdf_trunc / rc.voxel
     for f in scan.frames:
         h, w = f.depth.shape
         rgb = cv2.resize(f.rgb, (w, h), interpolation=cv2.INTER_AREA)
-        rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-            o3d.geometry.Image(np.ascontiguousarray(rgb)),
-            o3d.geometry.Image(np.ascontiguousarray(f.depth)),
-            depth_scale=1.0,
-            depth_trunc=cfg.io.max_depth,
-            convert_rgb_to_intensity=False,
-        )
-        K = f.K_depth
-        intr = o3d.camera.PinholeCameraIntrinsic(w, h, K[0, 0], K[1, 1], K[0, 2], K[1, 2])
-        vol.integrate(rgbd, intr, f.T_cw)
+        depth = o3d.t.geometry.Image(np.ascontiguousarray(f.depth))
+        color = o3d.t.geometry.Image(np.ascontiguousarray(rgb.astype(np.float32) / 255.0))
+        K = o3c.Tensor(f.K_depth, o3c.float64)
+        E = o3c.Tensor(np.ascontiguousarray(f.T_cw), o3c.float64)
+        coords = vbg.compute_unique_block_coordinates(depth, K, E, 1.0, cfg.io.max_depth, trunc_mult)
+        vbg.integrate(coords, depth, color, K, E, 1.0, cfg.io.max_depth, trunc_mult)
 
-    mesh = vol.extract_triangle_mesh()
+    mesh = vbg.extract_triangle_mesh().to_legacy()
     mesh.compute_vertex_normals()
-    pcd = vol.extract_point_cloud().voxel_down_sample(rc.points_voxel)
+    pcd = vbg.extract_point_cloud().to_legacy().voxel_down_sample(rc.points_voxel)
     pcd.estimate_normals(o3d.geometry.KDTreeSearchParamHybrid(radius=rc.points_voxel * 3, max_nn=30))
     pts = np.asarray(pcd.points)
     nrm = _orient_to_cameras(pts, np.asarray(pcd.normals), scan)
-    return Surface(pts, nrm, np.asarray(pcd.colors), mesh)
+    return Surface(pts, nrm, np.clip(np.asarray(pcd.colors), 0, 1), mesh)
 
 
 def _orient_to_cameras(pts: np.ndarray, nrm: np.ndarray, scan: Scan) -> np.ndarray:

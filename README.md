@@ -91,10 +91,15 @@ recording B ─┘                                 └─ visibility test B→A 
    - No frame of B looks at the point → **unknown**.
 
    A point is CHANGED when most observations see through it, UNCHANGED when most see it, and UNKNOWN when fewer than 3 frames observe it. I do the same from B to A to find added surfaces.
-5. **Objects.** DBSCAN groups changed points into objects. For each object I find the frames that show it best.
+5. **Objects.** DBSCAN groups changed points. Each group then **grows into the whole object** in its own scan:
+   cut away the horizontal support under it (floor, table top), keep the surface points that connect to the
+   changed points, grow the box, repeat. So a box on a table does not join the table, and the bottom of an object
+   (which touches the support, so the ray test cannot call it changed) is part of the object again.
+   Groups that grow into the same object are merged. For each object I find the frames that show it best.
    A removed object and an added object are one **moved** object only if their colour and size match (two simple gates),
    and then the closest pair by CLIP appearance + size + colour wins.
-   ICP between the two point sets gives the move distance and the turn angle.
+   ICP between the two whole objects gives the move distance and the turn angle. A "move" smaller than
+   max(2 cm, 3 × alignment error) with a turn under 5° is noise and is dropped.
 6. **Words.** CLIP names the object from an open lexicon of ~1,200 everyday object names (LVIS). If CLIP is not sure,
    the name is "unknown object" with its colour and size. The sentence comes from a template with the measured numbers.
    With `--vlm claude`, a vision model writes the sentence, but it receives the numbers as fixed facts.
@@ -122,7 +127,7 @@ recording B ─┘                                 └─ visibility test B→A 
 - Objects smaller than about 6 cm are filtered out (LiDAR noise is about 1–2 cm).
 - Glass, mirrors and black surfaces give bad LiDAR depth.
 - Symmetric objects (a box) can give a turn angle that is wrong by 90° or 180°.
-- Objects moved only a few centimetres are not reliable.
+- Moves under about 5 cm are not reliable (synthetic test: an 8 cm move on a table is found, with a 5 cm distance error).
 
 ## Tests
 

@@ -58,6 +58,7 @@ class Change:
     description: str = ""
     label_score: float = 0.0
     facts: dict = field(default_factory=dict)
+    flat: bool = False       # found by colour only (too thin for the depth test)
 
     @property
     def blob(self) -> Blob:

@@ -60,7 +60,10 @@ def facts(ch: Change, scan_a: Scan, floor_h: float, up: np.ndarray, scene) -> di
         "size_m": {"height": round(float(ext[0]), 2), "width": round(float(ext[1]), 2), "depth": round(float(ext[2]), 2)},
         "rests_at_height_m": round(max(0.0, support_height(scene.points, scene.normals, b.points, up, floor_h) - floor_h), 2),
         "colour": colour_name(np.median(b.colors, 0)),
+        "flat": ch.flat,
     }
+    if ch.status == "surface_changed":
+        out["colour_before"] = colour_name(np.median(ch.before.colors, 0))
     if ch.status == "moved":
         out["moved_m"] = round(ch.distance, 2)
         out["turned_deg"] = round(ch.yaw(up))
@@ -99,8 +102,12 @@ def template_sentence(label: str, f: dict) -> str:
             s += f" and turned {abs(f['turned_deg'])}°"
         return s + f". It is now {height_words(f['rests_at_height_m'])}."
     size = f"about {max(f['size_m']['width'], f['size_m']['height']):.1f} m"
+    if f["status"] == "surface_changed":
+        return (f"The surface {height_words(f['rests_at_height_m'])} looks different now "
+                f"({f['colour_before']} before, {f['colour']} now). Seen by colour only.")
+    flat = "flat " if f.get("flat") else ""
     if f["status"] == "added":
-        return f"A new {name} ({size}) appeared {height_words(f['rests_at_height_m'])}."
+        return f"A new {flat}{name} ({size}) appeared {height_words(f['rests_at_height_m'])}."
     return f"The {name} ({size}) that was {height_words(f['rests_at_height_m'])} is gone."
 
 

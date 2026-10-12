@@ -44,6 +44,17 @@ objects:
   min_shift: 0.02           # a 'move' smaller than max(this, 3 x alignment RMSE) ...
   min_turn: 5.0             # ... and a turn smaller than this is noise, not a move
 
+appearance:                 # colour check, only where both scans saw the same surface
+  enabled: true
+  match_radius: 0.04        # pair each 'before' point with an 'after' point this close ...
+  min_normal_dot: 0.8       # ... whose surface faces the same way
+  edge_radius: 0.05         # skip points this close to an edge or crease
+  min_diff: 0.06            # chromaticity difference that always counts as small
+  k_mad: 6.0                # flag above median + k * MAD of all paired differences
+  min_points: 15
+  skip_near: 0.06           # ignore points this close to a change already found by geometry
+  flat_height: 0.005        # new surface higher than this -> flat object added (lower -> removed)
+
 describe:
   vlm: local                # local (CLIP, no key) | claude (needs ANTHROPIC_API_KEY)
   model: claude-opus-5-5    # used only when vlm = claude

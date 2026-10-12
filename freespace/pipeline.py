@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from rich.console import Console
 
-from . import change, costmap, describe, objects
+from . import appearance, change, costmap, describe, objects
 from .align import Alignment, align
 from .io import load_stray
 from .recon import Surface, fuse
@@ -76,6 +76,19 @@ def run(before: Path, after: Path, cfg, vlm: str = "local", cache_dir: Path | No
         added = objects.cluster(sb.points, sb.colors, ev_b.state, "after", cfg)
         min_shift = max(cfg.objects.min_shift, 3 * al.icp_rmse)
         changes = objects.build_changes(removed, added, A, B, sa, sb, floor_h, min_shift, cfg)
+
+    if cfg.appearance.enabled:
+        with Timer("colour check where both scans saw the surface"):
+            near = [b.points for c in changes for b in (c.before, c.after) if b is not None]
+            flat = appearance.flat_changes(sa, ev_a, sb, up, near, cfg)
+            for c in flat:
+                for blob, scan in ((c.before, A), (c.after, B)):
+                    if blob is not None:
+                        blob.views = objects.find_views(blob, scan, cfg)
+            changes += flat
+            for k, c in enumerate(changes):
+                c.id = k + 1
+            con.print(f"  {len(flat)} flat / surface changes")
 
     with Timer(f"describe changes ({vlm})"):
         describe.describe_all(changes, A, B, floor_h, sb, cfg, vlm=vlm, cache_dir=cache_dir)

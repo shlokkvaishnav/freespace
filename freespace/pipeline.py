@@ -49,7 +49,9 @@ class Timer:
 
 
 def run(before: Path, after: Path, cfg, vlm: str = "local", cache_dir: Path | None = None,
-        T_init: np.ndarray | None = None) -> Result:
+        T_init: np.ndarray | None = None, baseline: str = "freespace") -> Result:
+    """baseline='naive' replaces the ray test by the plain cloud-to-cloud distance (for the comparison table);
+    everything after it (objects, moves, words) stays the same."""
     with Timer("load recordings"):
         A, B = load_stray(before, cfg), load_stray(after, cfg)
         con.print(f"  before: {len(A.frames)} keyframes, after: {len(B.frames)} keyframes")
@@ -69,6 +71,10 @@ def run(before: Path, after: Path, cfg, vlm: str = "local", cache_dir: Path | No
             con.print(f"  {name}: unchanged {n[0]}, changed {n[1]}, unknown {n[2]}")
     naive_a = change.naive_diff(sa.points, sb.points)
     naive_b = change.naive_diff(sb.points, sa.points)
+    if baseline == "naive":
+        ev_a = change.Evidence(ev_a.n_hit, ev_a.n_free, naive_a.copy(), ev_a.hit_res)
+        ev_b = change.Evidence(ev_b.n_hit, ev_b.n_free, naive_b.copy(), ev_b.hit_res)
+        con.print("  [yellow]baseline: naive distance diff instead of the ray test[/]")
 
     up = B.up / np.linalg.norm(B.up)
     floor_h = float(np.percentile(np.concatenate([sa.points, sb.points]) @ up, 2))
@@ -148,8 +154,24 @@ def change_record(c: objects.Change, up: np.ndarray) -> dict:
     return rec
 
 
+def save_crops(res: Result, out: Path) -> None:
+    """One image per change and side (crops/<id>_before.jpg, crops/<id>_after.jpg), for review."""
+    import cv2
+
+    (out / "crops").mkdir(parents=True, exist_ok=True)
+    for c in res.changes:
+        for side, scan in (("before", res.scan_a), ("after", res.scan_b)):
+            blob = getattr(c, side)
+            if blob is None:
+                continue
+            imgs = objects.crops(blob, scan)
+            if imgs and imgs[0].size:
+                cv2.imwrite(str(out / "crops" / f"{c.id}_{side}.jpg"), cv2.cvtColor(imgs[0], cv2.COLOR_RGB2BGR))
+
+
 def save(res: Result, out: Path) -> dict:
     out.mkdir(parents=True, exist_ok=True)
+    save_crops(res, out)
     up = res.scan_b.up / np.linalg.norm(res.scan_b.up)
     summary = {
         "frame": "after recording (ARKit world of the second session)",

@@ -8,6 +8,8 @@ It also tells you which parts of the room it **cannot judge**, because the secon
 recording did not see them. A robot must not think that an object is gone when it
 only did not look.
 
+**Live demo report (no install):** https://shlokkvaishnav.github.io/freespace/ — synthetic room; real-room results follow.
+
 <!-- RESULTS: add GIF / screenshots of report.html here after recording real scenes -->
 
 ## Quick start

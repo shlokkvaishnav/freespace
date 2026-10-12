@@ -51,6 +51,22 @@ SHOEBOX_A = Obj("shoebox", (0.32, 0.12, 0.2), (3.0, 2.4), (230, 120, 40), base=0
 SHOEBOX_B = Obj("shoebox", (0.32, 0.12, 0.2), (3.08, 2.4), (230, 120, 40), base=0.75)
 # a magazine lying flat on the floor: too thin for the depth test, only colour can find it
 BOOK = Obj("magazine", (0.3, 0.015, 0.22), (2.95, 1.95), (40, 70, 170))
+# a free-standing door panel that swings 70 degrees about its hinge edge (articulation)
+DOOR_A = Obj("door", (0.8, 1.9, 0.04), (4.6, 2.0), (200, 190, 170), yaw=90.0)
+# a blanket lying on the floor, folded in half between the walks (non-rigid change)
+BLANKET_A = Obj("blanket", (0.5, 0.04, 0.36), (3.0, 1.85), (120, 160, 200))
+BLANKET_B = Obj("blanket", (0.25, 0.09, 0.36), (2.875, 1.85), (120, 160, 200))
+
+
+def swung(o: Obj, deg: float, edge: float = -1.0) -> Obj:
+    """The same panel rotated by `deg` about its vertical edge at local x = edge * size_x / 2."""
+    R = lambda a: Rotation.from_euler("y", a, degrees=True).as_matrix()
+    hinge = np.array([o.pos[0], 0, o.pos[1]]) + R(o.yaw) @ np.array([edge * o.size[0] / 2, 0, 0])
+    centre = hinge - R(o.yaw + deg) @ np.array([edge * o.size[0] / 2, 0, 0])
+    return Obj(o.name, o.size, (float(centre[0]), float(centre[2])), o.color, yaw=o.yaw + deg)
+
+
+DOOR_B = swung(DOOR_A, 70.0)
 # an object no word list expects: an upright purple ring (used to test class-agnostic detection)
 ODD = Obj("ring sculpture", (0.66, 0.66, 0.16), (2.9, 0.7), (140, 60, 170), shape="torus")
 
@@ -92,13 +108,23 @@ def _room_meshes() -> list[tuple[str, o3d.geometry.TriangleMesh, tuple[int, int,
     return out
 
 
+def _to_local(o: Obj) -> np.ndarray:
+    """World -> object frame, so an object's texture moves with it (like a real object)."""
+    T = np.eye(4)
+    T[:3, :3] = Rotation.from_euler("y", o.yaw, degrees=True).as_matrix()
+    T[:3, 3] = (o.pos[0], o.base, o.pos[1])
+    return np.linalg.inv(T)
+
+
 class Renderer:
     def __init__(self, objs: list[Obj]):
         self.scene = o3d.t.geometry.RaycastingScene()
-        self.colors = []
-        for name, m, col in _room_meshes() + [(o.name, _mesh(o), o.color) for o in objs]:
+        self.colors, self.to_local = [], []
+        room = [(name, m, col, None) for name, m, col in _room_meshes()]
+        for name, m, col, T in room + [(o.name, _mesh(o), o.color, _to_local(o)) for o in objs]:
             self.scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(m))
             self.colors.append(np.array(col, np.float32))
+            self.to_local.append(T)
         self.colors = np.stack(self.colors)
 
     def render(self, T_wc: np.ndarray, w: int, h: int, fx: float):
@@ -117,7 +143,12 @@ class Renderer:
     def rgb(self, T_wc: np.ndarray) -> np.ndarray:
         z, gid, hit = self.render(T_wc, RGB_W, RGB_H, FX)
         base = self.colors[np.clip(gid, 0, len(self.colors) - 1)]
-        img = base * _texture(hit)[..., None]
+        local = hit.copy()
+        for g, T in enumerate(self.to_local):
+            if T is not None:
+                m = gid == g
+                local[m] = hit[m] @ T[:3, :3].T + T[:3, 3]
+        img = base * _texture(local)[..., None]
         return np.clip(img, 0, 255).astype(np.uint8)
 
     def depth(self, T_wc: np.ndarray, rng: np.random.Generator) -> np.ndarray:
@@ -192,13 +223,15 @@ def yaw_transform(deg: float, t: tuple[float, float, float]) -> np.ndarray:
 
 
 def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0, odd: bool = False, small: bool = False,
-              flat: bool = False) -> Path:
+              flat: bool = False, hinge: bool = False, folded: bool = False) -> Path:
     """odd=True also adds an object with a shape and colour outside any word list.
     small=True also puts a shoebox on the table and moves it by 8 cm.
-    flat=True also adds a 1.5 cm magazine lying on the floor."""
+    flat=True also adds a 1.5 cm magazine lying on the floor.
+    hinge=True adds a door panel that swings 70 degrees about its edge.
+    folded=True adds a blanket on the floor that is folded in half (a non-rigid change)."""
     out = Path(out)
-    scene_a = SCENE_A + ([SHOEBOX_A] if small else [])
-    scene_b = SCENE_B + ([ODD] if odd else []) + ([SHOEBOX_B] if small else []) + ([BOOK] if flat else [])
+    scene_a = SCENE_A + ([SHOEBOX_A] if small else []) + ([DOOR_A] if hinge else []) + ([BLANKET_A] if folded else [])
+    scene_b = SCENE_B + ([ODD] if odd else []) + ([SHOEBOX_B] if small else []) + ([BOOK] if flat else []) + ([DOOR_B] if hinge else []) + ([BLANKET_B] if folded else [])
     G_a = np.eye(4)
     G_b = yaw_transform(37.0, (0.8, 0.0, -1.3))  # B session frame differs from A
     write_stray(out / "before", Renderer(scene_a), trajectory("A", n_frames), G_a, seed)
@@ -222,6 +255,13 @@ def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0, odd: bool = F
     }
     if odd:
         gt["changes"].append({"label": ODD.name, "status": "added", "after": centre(ODD, G_b)})
+    if hinge:
+        gt["changes"].append({"label": "door", "status": "moved", "motion": "hinge", "before": centre(DOOR_A, G_b),
+                              "after": centre(DOOR_B, G_b), "yaw": 70.0,
+                              "distance": float(np.hypot(DOOR_B.pos[0] - DOOR_A.pos[0], DOOR_B.pos[1] - DOOR_A.pos[1]))})
+    if folded:
+        gt["changes"].append({"label": "blanket", "status": "modified", "before": centre(BLANKET_A, G_b),
+                              "after": centre(BLANKET_B, G_b)})
     if flat:
         gt["changes"].append({"label": "magazine", "status": "added", "after": centre(BOOK, G_b)})
     if small:

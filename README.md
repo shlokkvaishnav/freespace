@@ -80,7 +80,7 @@ recording B ─┘                                 └─ visibility test B→A 
 1. **Load.** Stray Scanner gives RGB, LiDAR depth, confidence and ARKit camera poses for each frame. I keep a keyframe every 5 cm or 5°.
 2. **Fuse.** Each recording becomes a TSDF surface (Open3D, 2 cm voxels).
 3. **Align.** Two ARKit sessions share gravity but not heading or origin. So the unknown is 4 DoF (yaw + translation), not 6.
-   DINOv2 picks image pairs that look alike. LightGlue (or SIFT) matches pixels. LiDAR depth lifts the matches to 3D.
+   CLIP image embeddings pick image pairs that look alike. SIFT matches pixels (LightGlue is optional). LiDAR depth lifts the matches to 3D.
    A 2-point RANSAC finds yaw + translation. The changed objects are outliers here, so RANSAC ignores them.
    Robust point-to-plane ICP (Tukey loss) refines the result.
 4. **Visibility test (the core).** For each surface point of recording A, I ask every depth frame of recording B:
@@ -92,14 +92,23 @@ recording B ─┘                                 └─ visibility test B→A 
 
    A point is CHANGED when most observations see through it, UNCHANGED when most see it, and UNKNOWN when fewer than 3 frames observe it. I do the same from B to A to find added surfaces.
 5. **Objects.** DBSCAN groups changed points into objects. For each object I find the frames that show it best.
-   A removed object and an added object with similar DINOv2 appearance, size and colour are one **moved** object.
+   A removed object and an added object are one **moved** object only if their colour and size match (two simple gates),
+   and then the closest pair by CLIP appearance + size + colour wins.
    ICP between the two point sets gives the move distance and the turn angle.
-6. **Words.** CLIP names the object from a list of indoor words. The sentence comes from a template with the measured numbers.
+6. **Words.** CLIP names the object from an open lexicon of ~1,200 everyday object names (LVIS). If CLIP is not sure,
+   the name is "unknown object" with its colour and size. The sentence comes from a template with the measured numbers.
    With `--vlm claude`, a vision model writes the sentence, but it receives the numbers as fixed facts.
    So the geometry and the words always agree.
 7. **Robot view.** I project both scans to 2D occupancy grids at robot body height and plan the same A* path in each. The report shows how a new obstacle changes the path.
 
 ## Design choices and tradeoffs
+
+- **Class-agnostic by design.** Detection, grouping, move matching, heights and the navigation map never use object
+  classes. Anything that takes up space and was seen through (or is now in the way) is a change, the same rule a robot's
+  obstacle map uses. Names are a separate layer, used only for the words. A test checks that an object with a shape
+  and colour outside the lexicon is still found and placed.
+- **One small model.** CLIP ViT-B/16 does image retrieval, crop matching and names. Everything that decides
+  is classic geometry (TSDF, RANSAC, ICP, ray counts), so every decision can be checked by hand.
 
 - **Why LiDAR + ARKit and not pure RGB?** The challenge is about change reasoning, not about reconstruction. LiDAR gives metric depth for each frame, and the visibility test needs per-frame depth. Pure RGB would need a learned depth/pose model (e.g. VGGT), which adds error that looks like change.
 - **Why a 3-state answer?** A cloud-to-cloud distance marks every unseen region as "removed". That is a false alarm for a robot. The report shows this side by side: the *naive diff* layer against the *visibility* layer.

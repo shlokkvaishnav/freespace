@@ -3,8 +3,8 @@
 Two ARKit sessions share gravity (+Y up) but not heading or origin, so the
 unknown transform has 4 DoF: yaw about the up axis + translation.
 
-1. Image retrieval: DINOv2 embeddings pick the A/B frame pairs that look alike.
-2. Keypoint matches (LightGlue, or SIFT fallback) lifted to 3D with LiDAR depth.
+1. Image retrieval: CLIP image embeddings pick the A/B frame pairs that look alike.
+2. SIFT keypoint matches (LightGlue optional) lifted to 3D with LiDAR depth.
 3. 2-point RANSAC over yaw + translation. Changed objects are outliers here.
 4. Robust point-to-plane ICP (Tukey loss) on the fused surfaces to refine.
 """

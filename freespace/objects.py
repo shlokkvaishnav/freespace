@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import open3d as o3d
 from scipy.optimize import linear_sum_assignment
+from scipy.spatial import cKDTree
 from sklearn.cluster import DBSCAN
 
 from . import features
@@ -24,8 +25,9 @@ class View:
 @dataclass
 class Blob:
     side: str                # "before" (removed surface) or "after" (added surface)
-    points: np.ndarray
+    points: np.ndarray       # object points (grown from the changed points, see grow_object)
     colors: np.ndarray
+    changed: np.ndarray | None = None  # the CHANGED surface points that started this object
     views: list[View] = field(default_factory=list)
     embedding: np.ndarray | None = None
 
@@ -63,7 +65,13 @@ class Change:
 
     @property
     def distance(self) -> float:
-        return float(np.linalg.norm(self.after.centroid - self.before.centroid)) if self.status == "moved" else 0.0
+        """How far the object centre moved, from the fitted rigid transform (not from partial centroids)."""
+        if self.status != "moved":
+            return 0.0
+        c = self.before.centroid
+        if self.T_move is None:
+            return float(np.linalg.norm(self.after.centroid - c))
+        return float(np.linalg.norm(self.T_move[:3, :3] @ c + self.T_move[:3, 3] - c))
 
     def yaw(self, up: np.ndarray) -> float:
         if self.T_move is None:
@@ -95,6 +103,82 @@ def cluster(points: np.ndarray, colors: np.ndarray, state: np.ndarray, side: str
             continue
         blobs.append(Blob(side, points[m], colors[m]))
     return blobs
+
+
+def _flat(p: np.ndarray, up: np.ndarray) -> np.ndarray:
+    return p - np.outer(p @ up, up)
+
+
+def support_height(points: np.ndarray, normals: np.ndarray, obj_pts: np.ndarray, up: np.ndarray, floor_h: float) -> float:
+    """Height of the highest horizontal surface directly under the object (floor, table top, shelf)."""
+    h_all, h_obj = points @ up, obj_pts @ up
+    lo, hi = _flat(obj_pts, up).min(0), _flat(obj_pts, up).max(0)
+    fp = _flat(points, up)
+    inside = np.all((fp >= lo) & (fp <= hi), axis=1)
+    horizontal = np.abs(normals @ up) > 0.9
+    below = inside & horizontal & (h_all < h_obj.min() + 0.01) & (h_all > floor_h - 0.05)
+    return float(np.percentile(h_all[below], 95)) if below.sum() >= 10 else floor_h
+
+
+def grow_object(blob: Blob, surf, up: np.ndarray, floor_h: float, cfg) -> Blob:
+    """Grow the CHANGED points into the whole object in their own scan.
+
+    1. Cut away the support surface under the object (floor / table top), so objects on a
+       shared surface do not join.
+    2. Keep surface points that connect (DBSCAN) to the changed points; grow the box and repeat.
+    This recovers the parts the ray test cannot call changed (the bottom, which touches the support)
+    and the rest of an object that moved only a little.
+    """
+    oc = cfg.objects
+    seed = blob.points
+    sup = support_height(surf.points, surf.normals, seed, up, floor_h)
+    h_all = surf.points @ up
+    above = h_all > sup + oc.support_gap
+    fp = _flat(surf.points, up)
+    kept = seed
+    keep_idx = None
+    for _ in range(oc.grow_iters):
+        lo = _flat(kept, up).min(0) - oc.grow_margin
+        hi = _flat(kept, up).max(0) + oc.grow_margin
+        top = (kept @ up).max() + oc.grow_margin
+        sel = np.flatnonzero(above & (h_all < top) & np.all((fp >= lo) & (fp <= hi), axis=1))
+        if sel.size < 10:
+            break
+        lab = DBSCAN(eps=oc.cluster_eps, min_samples=5).fit_predict(surf.points[sel])
+        d, j = cKDTree(surf.points[sel]).query(seed)
+        hit = set(lab[j[d < oc.cluster_eps]]) - {-1}
+        new_idx = sel[np.isin(lab, list(hit))]
+        if new_idx.size == 0 or (keep_idx is not None and new_idx.size <= keep_idx.size):
+            break
+        span = np.ptp(_flat(surf.points[new_idx], up), axis=0).max()
+        if span > oc.max_object_size:  # grew into a wall or a large piece of furniture: stop
+            break
+        keep_idx = new_idx
+        kept = surf.points[keep_idx]
+    if keep_idx is None:
+        return Blob(blob.side, seed, blob.colors, changed=seed)
+    return Blob(blob.side, surf.points[keep_idx], surf.colors[keep_idx], changed=seed)
+
+
+def merge_same_object(blobs: list[Blob], voxel: float) -> list[Blob]:
+    """Clusters that grew into the same object become one."""
+    keys = [set(map(tuple, np.floor(b.points / voxel).astype(int))) for b in blobs]
+    out, used = [], set()
+    for i, b in enumerate(blobs):
+        if i in used:
+            continue
+        pts, cols, ch, k = [b.points], [b.colors], [b.changed], set(keys[i])
+        for j in range(i + 1, len(blobs)):
+            if j in used:
+                continue
+            if len(k & keys[j]) > 0.3 * min(len(k), len(keys[j])):
+                used.add(j)
+                k |= keys[j]
+                pts.append(blobs[j].points); cols.append(blobs[j].colors); ch.append(blobs[j].changed)
+        P, C = np.concatenate(pts), np.concatenate(cols)
+        _, uniq = np.unique(np.round(P / (voxel / 2)).astype(int), axis=0, return_index=True)
+        out.append(Blob(b.side, P[uniq], C[uniq], changed=np.concatenate(ch)))
+    return out
 
 
 def find_views(blob: Blob, scan: Scan, cfg, n: int = 3) -> list[View]:
@@ -177,8 +261,12 @@ def estimate_move(a: Blob, b: Blob, up: np.ndarray) -> tuple[np.ndarray, float]:
     return best, float(best_err)
 
 
-def build_changes(removed: list[Blob], added: list[Blob], scan_a: Scan, scan_b: Scan, cfg) -> list[Change]:
+def build_changes(removed: list[Blob], added: list[Blob], scan_a: Scan, scan_b: Scan, surf_a, surf_b,
+                  floor_h: float, min_shift: float, cfg) -> list[Change]:
     up = scan_b.up / np.linalg.norm(scan_b.up)
+    vox = cfg.recon.points_voxel
+    removed = merge_same_object([grow_object(b, surf_a, up, floor_h, cfg) for b in removed], vox)
+    added = merge_same_object([grow_object(b, surf_b, up, floor_h, cfg) for b in added], vox)
     for b in removed:
         b.views = find_views(b, scan_a, cfg)
     for b in added:
@@ -210,7 +298,10 @@ def build_changes(removed: list[Blob], added: list[Blob], scan_a: Scan, scan_b: 
     used_r, used_a = {i for i, _ in pairs}, {j for _, j in pairs}
     for i, j in pairs:
         T, _ = estimate_move(removed[i], added[j], up)
-        changes.append(Change(0, "moved", removed[i], added[j], T))
+        ch = Change(0, "moved", removed[i], added[j], T)
+        if ch.distance < min_shift and abs(ch.yaw(up)) < cfg.objects.min_turn:
+            continue  # same object, same place: noise from pose or depth, not a change
+        changes.append(ch)
     changes += [Change(0, "removed", r, None) for i, r in enumerate(removed) if i not in used_r]
     changes += [Change(0, "added", None, a) for j, a in enumerate(added) if j not in used_a]
     changes.sort(key=lambda c: -len(c.blob.points))

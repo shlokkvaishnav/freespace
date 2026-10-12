@@ -17,7 +17,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .objects import Change, crops
+from .objects import Change, crops, support_height
 from .scan import Scan
 
 LEXICON_PATH = Path(__file__).parent / "data" / "lexicon.txt"
@@ -49,18 +49,6 @@ def colour_name(rgb01: np.ndarray) -> str:
 
 
 # ---------------------------------------------------------------- geometry facts
-
-def support_height(points: np.ndarray, normals: np.ndarray, blob_pts: np.ndarray, up: np.ndarray, floor_h: float) -> float:
-    """Height of the highest horizontal surface directly under the object (floor, table top, shelf)."""
-    h_all, h_obj = points @ up, blob_pts @ up
-    flat = lambda p: p - np.outer(p @ up, up)
-    lo, hi = flat(blob_pts).min(0), flat(blob_pts).max(0)
-    fp = flat(points)
-    inside = np.all((fp >= lo) & (fp <= hi), axis=1)
-    horizontal = np.abs(normals @ up) > 0.9
-    below = inside & horizontal & (h_all < h_obj.min() + 0.01) & (h_all > floor_h - 0.05)
-    return float(np.percentile(h_all[below], 95)) if below.sum() >= 10 else floor_h
-
 
 def facts(ch: Change, scan_a: Scan, floor_h: float, up: np.ndarray, scene) -> dict:
     """Plain numbers about a change, all in metres / degrees, in the shared frame."""
@@ -94,7 +82,7 @@ def direction_words(d: np.ndarray, scan_a: Scan, up: np.ndarray) -> str:
         parts.append("to the right" if r > 0 else "to the left")
     if abs(f) > 0.15:
         parts.append("further from the start position" if f > 0 else "closer to the start position")
-    return " and ".join(parts) or "a short distance"
+    return " and ".join(parts)
 
 
 def height_words(hm: float) -> str:
@@ -106,7 +94,7 @@ def height_words(hm: float) -> str:
 def template_sentence(label: str, f: dict) -> str:
     name = f"{f['colour']} {'object' if label == 'unknown object' else label}".strip()
     if f["status"] == "moved":
-        s = f"The {name} moved {f['moved_m']:.2f} m {f['direction']}"
+        s = f"The {name} moved {f['moved_m']:.2f} m" + (f" {f['direction']}" if f["direction"] else "")
         if abs(f["turned_deg"]) >= 10:
             s += f" and turned {abs(f['turned_deg'])}°"
         return s + f". It is now {height_words(f['rests_at_height_m'])}."

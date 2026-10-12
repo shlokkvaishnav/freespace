@@ -69,13 +69,14 @@ def run(before: Path, after: Path, cfg, vlm: str = "local", cache_dir: Path | No
     naive_a = change.naive_diff(sa.points, sb.points)
     naive_b = change.naive_diff(sb.points, sa.points)
 
+    up = B.up / np.linalg.norm(B.up)
+    floor_h = float(np.percentile(np.concatenate([sa.points, sb.points]) @ up, 2))
     with Timer("group into objects and match moves"):
         removed = objects.cluster(sa.points, sa.colors, ev_a.state, "before", cfg)
         added = objects.cluster(sb.points, sb.colors, ev_b.state, "after", cfg)
-        changes = objects.build_changes(removed, added, A, B, cfg)
+        min_shift = max(cfg.objects.min_shift, 3 * al.icp_rmse)
+        changes = objects.build_changes(removed, added, A, B, sa, sb, floor_h, min_shift, cfg)
 
-    up = B.up / np.linalg.norm(B.up)
-    floor_h = float(np.percentile(np.concatenate([sa.points, sb.points]) @ up, 2))
     with Timer(f"describe changes ({vlm})"):
         describe.describe_all(changes, A, B, floor_h, sb, cfg, vlm=vlm, cache_dir=cache_dir)
         for c in changes:

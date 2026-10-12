@@ -37,6 +37,12 @@ objects:
   match_max_cost: 0.9       # removed<->added pairing threshold for "moved"
   max_colour_diff: 0.25     # gate: median RGB distance (0..1 units) between removed and added part
   max_size_diff: 0.4        # gate: mean relative difference of (height, long side, short side)
+  support_gap: 0.015        # object points start this far above their support surface
+  grow_margin: 0.08         # box margin for each growth step
+  grow_iters: 6
+  max_object_size: 2.5      # stop growing past this (it reached a wall or big furniture)
+  min_shift: 0.02           # a 'move' smaller than max(this, 3 x alignment RMSE) ...
+  min_turn: 5.0             # ... and a turn smaller than this is noise, not a move
 
 describe:
   vlm: local                # local (CLIP, no key) | claude (needs ANTHROPIC_API_KEY)

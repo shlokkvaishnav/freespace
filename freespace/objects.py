@@ -11,7 +11,7 @@ from sklearn.cluster import DBSCAN
 
 from . import features
 from .align import yaw_matrix
-from .change import CHANGED
+from .change import CHANGED, UNCHANGED
 from .scan import Scan
 
 
@@ -59,6 +59,9 @@ class Change:
     label_score: float = 0.0
     facts: dict = field(default_factory=dict)
     flat: bool = False       # found by colour only (too thin for the depth test)
+    motion: str = ""         # moves only: move | slide | turn_in_place | hinge
+    yaw_alternatives: list[float] = field(default_factory=list)  # other turns that fit the shape equally well
+    fit_error: float = 0.0   # median distance (m) after the best rigid fit
 
     @property
     def blob(self) -> Blob:
@@ -77,12 +80,7 @@ class Change:
     def yaw(self, up: np.ndarray) -> float:
         if self.T_move is None:
             return 0.0
-        R = self.T_move[:3, :3]
-        a = np.cross(up, [1.0, 0, 0])
-        a = a if np.linalg.norm(a) > 0.1 else np.cross(up, [0, 0, 1.0])
-        a /= np.linalg.norm(a)
-        b = R @ a
-        return float(np.degrees(np.arctan2(np.cross(a, b) @ up, a @ b)))
+        return _yaw_of(self.T_move, up)
 
     def confidence(self) -> float:
         return float(min(1.0, sum(v.visible for v in self.blob.views) / 400))
@@ -110,10 +108,12 @@ def _flat(p: np.ndarray, up: np.ndarray) -> np.ndarray:
     return p - np.outer(p @ up, up)
 
 
-def support_height(points: np.ndarray, normals: np.ndarray, obj_pts: np.ndarray, up: np.ndarray, floor_h: float) -> float:
-    """Height of the highest horizontal surface directly under the object (floor, table top, shelf)."""
+def support_height(points: np.ndarray, normals: np.ndarray, obj_pts: np.ndarray, up: np.ndarray, floor_h: float,
+                   margin: float = 0.08) -> float:
+    """Height of the highest horizontal surface under the object (floor, table top, shelf).
+    The footprint is widened by `margin`: right under the object the support is often hidden by the object."""
     h_all, h_obj = points @ up, obj_pts @ up
-    lo, hi = _flat(obj_pts, up).min(0), _flat(obj_pts, up).max(0)
+    lo, hi = _flat(obj_pts, up).min(0) - margin, _flat(obj_pts, up).max(0) + margin
     fp = _flat(points, up)
     inside = np.all((fp >= lo) & (fp <= hi), axis=1)
     horizontal = np.abs(normals @ up) > 0.9
@@ -121,7 +121,7 @@ def support_height(points: np.ndarray, normals: np.ndarray, obj_pts: np.ndarray,
     return float(np.percentile(h_all[below], 95)) if below.sum() >= 10 else floor_h
 
 
-def grow_object(blob: Blob, surf, up: np.ndarray, floor_h: float, cfg) -> Blob:
+def grow_object(blob: Blob, surf, up: np.ndarray, floor_h: float, cfg, state: np.ndarray | None = None) -> Blob:
     """Grow the CHANGED points into the whole object in their own scan.
 
     1. Cut away the support surface under the object (floor / table top), so objects on a
@@ -129,12 +129,17 @@ def grow_object(blob: Blob, surf, up: np.ndarray, floor_h: float, cfg) -> Blob:
     2. Keep surface points that connect (DBSCAN) to the changed points; grow the box and repeat.
     This recovers the parts the ray test cannot call changed (the bottom, which touches the support)
     and the rest of an object that moved only a little.
+    Points the other scan *confirmed* (UNCHANGED) are allowed only near the support or near the changed
+    points, so growth does not run into a static neighbour (a table next to a door).
     """
     oc = cfg.objects
     seed = blob.points
     sup = support_height(surf.points, surf.normals, seed, up, floor_h)
     h_all = surf.points @ up
     above = h_all > sup + oc.support_gap
+    if state is not None:
+        near_seed = cKDTree(seed).query(surf.points, distance_upper_bound=oc.grow_margin)[0] < np.inf
+        above &= (state != UNCHANGED) | (h_all < sup + oc.bottom_band) | near_seed
     fp = _flat(surf.points, up)
     kept = seed
     keep_idx = None
@@ -145,9 +150,10 @@ def grow_object(blob: Blob, surf, up: np.ndarray, floor_h: float, cfg) -> Blob:
         sel = np.flatnonzero(above & (h_all < top) & np.all((fp >= lo) & (fp <= hi), axis=1))
         if sel.size < 10:
             break
-        lab = DBSCAN(eps=oc.cluster_eps, min_samples=5).fit_predict(surf.points[sel])
+        # tighter link than the change clustering: objects a few cm apart must not join
+        lab = DBSCAN(eps=oc.grow_eps, min_samples=5).fit_predict(surf.points[sel])
         d, j = cKDTree(surf.points[sel]).query(seed)
-        hit = set(lab[j[d < oc.cluster_eps]]) - {-1}
+        hit = set(lab[j[d < oc.grow_eps]]) - {-1}
         new_idx = sel[np.isin(lab, list(hit))]
         if new_idx.size == 0 or (keep_idx is not None and new_idx.size <= keep_idx.size):
             break
@@ -180,6 +186,17 @@ def merge_same_object(blobs: list[Blob], voxel: float) -> list[Blob]:
         _, uniq = np.unique(np.round(P / (voxel / 2)).astype(int), axis=0, return_index=True)
         out.append(Blob(b.side, P[uniq], C[uniq], changed=np.concatenate(ch)))
     return out
+
+
+def footprint_iou(a: Blob, b: Blob, up: np.ndarray) -> float:
+    """Overlap of the two horizontal bounding boxes (in a fixed plane basis)."""
+    u = np.cross(up, [1.0, 0, 0]); u = u if np.linalg.norm(u) > 0.1 else np.cross(up, [0, 0, 1.0]); u /= np.linalg.norm(u)
+    B = np.stack([u, np.cross(up, u)], 1)
+    pa, pb = a.points @ B, b.points @ B
+    lo, hi = np.maximum(pa.min(0), pb.min(0)), np.minimum(pa.max(0), pb.max(0))
+    inter = np.prod(np.clip(hi - lo, 0, None))
+    area = lambda p: np.prod(p.max(0) - p.min(0))
+    return float(inter / max(area(pa) + area(pb) - inter, 1e-6))
 
 
 def find_views(blob: Blob, scan: Scan, cfg, n: int = 3) -> list[View]:
@@ -241,11 +258,50 @@ def colour_cost(a: Blob, b: Blob) -> float:
     return float(np.linalg.norm(np.median(a.colors, 0) - np.median(b.colors, 0)))
 
 
-def estimate_move(a: Blob, b: Blob, up: np.ndarray) -> tuple[np.ndarray, float]:
-    """Rigid before->after transform. Tries yaw seeds, keeps the best ICP fit."""
+def _yaw_of(T: np.ndarray, up: np.ndarray) -> float:
+    a = np.cross(up, [1.0, 0, 0])
+    a = a if np.linalg.norm(a) > 0.1 else np.cross(up, [0, 0, 1.0])
+    a /= np.linalg.norm(a)
+    b = T[:3, :3] @ a
+    return float(np.degrees(np.arctan2(np.cross(a, b) @ up, a @ b)))
+
+
+def _colour_err(a: Blob, b: Blob, T: np.ndarray) -> float:
+    moved = a.points @ T[:3, :3].T + T[:3, 3]
+    d, j = cKDTree(b.points).query(moved)
+    m = d < 0.03
+    return float(np.median(np.linalg.norm(a.colors[m] - b.colors[j[m]], axis=1))) if m.sum() > 10 else np.inf
+
+
+def estimate_move(a: Blob, b: Blob, up: np.ndarray) -> tuple[np.ndarray, float, list[float]]:
+    """Rigid before->after transform. Returns (T, shape error, other turns that fit as well).
+
+    ICP from 12 yaw seeds. Every distinct turn whose shape error is close to the best is a candidate
+    (a square box fits at 0/90/180/270). The surface texture then decides; if it cannot, the other
+    turns are returned so the report can say the turn is ambiguous."""
+    cands = _icp_candidates(a, b, up)
+    best_err = cands[0][1]
+    close = [c for c in cands if c[1] <= 1.6 * best_err + 0.005]  # partial views make the true fit a bit worse
+    distinct = []
+    for T, e in close:
+        y = _yaw_of(T, up)
+        if all(abs((y - _yaw_of(T2, up) + 180) % 360 - 180) > 15 for T2, _ in distinct):
+            distinct.append((T, e))
+    if len(distinct) == 1:
+        return distinct[0][0], distinct[0][1], []
+    col = [_colour_err(a, b, T) for T, _ in distinct]
+    order = np.argsort(col)
+    if col[order[0]] < 0.75 * col[order[1]]:  # texture clearly prefers one turn
+        T, e = distinct[order[0]]
+        return T, e, []
+    T, e = distinct[0]
+    return T, e, [_yaw_of(T2, up) for T2, _ in distinct[1:]]
+
+
+def _icp_candidates(a: Blob, b: Blob, up: np.ndarray) -> list[tuple[np.ndarray, float]]:
     pa = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(a.points))
     pb = o3d.geometry.PointCloud(o3d.utility.Vector3dVector(b.points))
-    best, best_err = np.eye(4), np.inf
+    out = []
     for yaw in np.radians(np.arange(0, 360, 30)):
         T0 = np.eye(4)
         T0[:3, :3] = yaw_matrix(yaw, up)
@@ -256,18 +312,41 @@ def estimate_move(a: Blob, b: Blob, up: np.ndarray) -> tuple[np.ndarray, float]:
         moved = np.asarray(o3d.geometry.PointCloud(pa).transform(r.transformation).points)
         d1 = np.asarray(pb.compute_point_cloud_distance(o3d.geometry.PointCloud(o3d.utility.Vector3dVector(moved))))
         d2 = np.asarray(o3d.geometry.PointCloud(o3d.utility.Vector3dVector(moved)).compute_point_cloud_distance(pb))
-        err = np.median(d1) + np.median(d2)
-        if err < best_err:
-            best, best_err = np.asarray(r.transformation), err
-    return best, float(best_err)
+        out.append((np.asarray(r.transformation), float(np.median(d1) + np.median(d2))))
+    return sorted(out, key=lambda c: c[1])
+
+
+def motion_type(ch: "Change", up: np.ndarray) -> str:
+    """Class-agnostic kind of rigid motion, from where the rotation axis is:
+    inside the object -> turn_in_place; at its edge -> hinge (a door); no turn, short -> slide."""
+    yaw = abs(ch.yaw(up))
+    if yaw < 5:
+        return "slide" if ch.distance < 0.6 else "move"
+    if yaw < 15:
+        return "move"
+    R, t = ch.T_move[:3, :3], ch.T_move[:3, 3]
+    # pivot c on the rotation axis: (I - R) c = t, solved in the horizontal plane
+    a = np.cross(up, [1.0, 0, 0]); a = a if np.linalg.norm(a) > 0.1 else np.cross(up, [0, 0, 1.0]); a /= np.linalg.norm(a)
+    B = np.stack([a, np.cross(up, a)], 1)                   # 3x2 plane basis
+    M = B.T @ (np.eye(3) - R) @ B
+    c = B @ np.linalg.lstsq(M, B.T @ t, rcond=None)[0]
+    flat = _flat(ch.before.points, up)
+    ctr = flat.mean(0)
+    radius = np.percentile(np.linalg.norm(flat - ctr, axis=1), 95)
+    rel = np.linalg.norm(_flat(c[None], up)[0] - ctr) / max(radius, 1e-3)
+    if rel < 0.35:
+        return "turn_in_place"
+    if rel < 1.2:
+        return "hinge"
+    return "move"
 
 
 def build_changes(removed: list[Blob], added: list[Blob], scan_a: Scan, scan_b: Scan, surf_a, surf_b,
-                  floor_h: float, min_shift: float, cfg) -> list[Change]:
+                  floor_h: float, min_shift: float, cfg, state_a=None, state_b=None) -> list[Change]:
     up = scan_b.up / np.linalg.norm(scan_b.up)
     vox = cfg.recon.points_voxel
-    removed = merge_same_object([grow_object(b, surf_a, up, floor_h, cfg) for b in removed], vox)
-    added = merge_same_object([grow_object(b, surf_b, up, floor_h, cfg) for b in added], vox)
+    removed = merge_same_object([grow_object(b, surf_a, up, floor_h, cfg, state_a) for b in removed], vox)
+    added = merge_same_object([grow_object(b, surf_b, up, floor_h, cfg, state_b) for b in added], vox)
     for b in removed:
         b.views = find_views(b, scan_a, cfg)
     for b in added:
@@ -298,13 +377,28 @@ def build_changes(removed: list[Blob], added: list[Blob], scan_a: Scan, scan_b: 
     changes: list[Change] = []
     used_r, used_a = {i for i, _ in pairs}, {j for _, j in pairs}
     for i, j in pairs:
-        T, _ = estimate_move(removed[i], added[j], up)
-        ch = Change(0, "moved", removed[i], added[j], T)
-        if ch.distance < min_shift and abs(ch.yaw(up)) < cfg.objects.min_turn:
+        T, err, alts = estimate_move(removed[i], added[j], up)
+        ch = Change(0, "moved", removed[i], added[j], T, yaw_alternatives=alts, fit_error=err)
+        if err > oc.max_fit_error:  # colour and size match, but no rigid motion explains the shape
+            ch.status, ch.T_move, ch.yaw_alternatives = "modified", None, []
+        elif ch.distance < min_shift and abs(ch.yaw(up)) < oc.min_turn:
             continue  # same object, same place: noise from pose or depth, not a change
+        else:
+            ch.motion = motion_type(ch, up)
         changes.append(ch)
-    changes += [Change(0, "removed", r, None) for i, r in enumerate(removed) if i not in used_r]
-    changes += [Change(0, "added", None, a) for j, a in enumerate(added) if j not in used_a]
+    # a removed and an added region in the same place and colour that are not a rigid move: the shape changed
+    left_r = [i for i in range(len(removed)) if i not in used_r]
+    left_a = [j for j in range(len(added)) if j not in used_a]
+    for i in list(left_r):
+        for j in list(left_a):
+            if (footprint_iou(removed[i], added[j], up) > oc.modified_overlap
+                    and colour_cost(removed[i], added[j]) < oc.max_colour_diff):
+                changes.append(Change(0, "modified", removed[i], added[j]))
+                left_r.remove(i)
+                left_a.remove(j)
+                break
+    changes += [Change(0, "removed", removed[i], None) for i in left_r]
+    changes += [Change(0, "added", None, added[j]) for j in left_a]
     changes.sort(key=lambda c: -len(c.blob.points))
     for k, c in enumerate(changes):
         c.id = k + 1

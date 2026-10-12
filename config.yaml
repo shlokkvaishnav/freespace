@@ -39,10 +39,14 @@ objects:
   max_size_diff: 0.4        # gate: mean relative difference of (height, long side, short side)
   support_gap: 0.015        # object points start this far above their support surface
   grow_margin: 0.08         # box margin for each growth step
+  grow_eps: 0.04            # growth links points closer than this (objects further apart stay separate)
   grow_iters: 6
+  bottom_band: 0.06          # confirmed-static points this close above the support may still join (object bottom)
   max_object_size: 2.5      # stop growing past this (it reached a wall or big furniture)
   min_shift: 0.02           # a 'move' smaller than max(this, 3 x alignment RMSE) ...
   min_turn: 5.0             # ... and a turn smaller than this is noise, not a move
+  max_fit_error: 0.05       # best rigid fit worse than this (median m) -> 'modified', not 'moved'
+  modified_overlap: 0.1     # unpaired removed + added regions, same colour, overlapping this much -> 'modified'
 
 fusion:                     # learned weights for the ray evidence (freespace/fusion.py)
   weights: []               # [bias, see_through_ratio, log_observations, hit_residual]; empty = hand rule

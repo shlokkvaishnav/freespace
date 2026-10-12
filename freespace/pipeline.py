@@ -75,7 +75,8 @@ def run(before: Path, after: Path, cfg, vlm: str = "local", cache_dir: Path | No
         removed = objects.cluster(sa.points, sa.colors, ev_a.state, "before", cfg)
         added = objects.cluster(sb.points, sb.colors, ev_b.state, "after", cfg)
         min_shift = max(cfg.objects.min_shift, 3 * al.icp_rmse)
-        changes = objects.build_changes(removed, added, A, B, sa, sb, floor_h, min_shift, cfg)
+        changes = objects.build_changes(removed, added, A, B, sa, sb, floor_h, min_shift, cfg,
+                                        ev_a.state, ev_b.state)
 
     if cfg.appearance.enabled:
         with Timer("colour check where both scans saw the surface"):

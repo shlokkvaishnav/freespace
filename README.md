@@ -7,8 +7,10 @@ were **moved**, **added** or **removed**, shows them in 3D, and describes each o
 a sentence. Example: *"The red chair moved 1.26 m to the right and turned 40°. It is now on the floor."*
 
 It also tells you which parts of the room it **cannot judge**, because the second
-recording did not see them. A robot must not think that an object is gone when it
-only did not look.
+recording did not see them, and **where to look next** to finish the check. A robot must
+not think that an object is gone when it only did not look.
+
+![Freespace report: the demo room with moved, added, removed and modified objects, and three "look here next" spots in yellow](assets/report.jpg)
 
 **Live demo report (no install):** https://shlokkvaishnav.github.io/freespace/ — a synthetic room with every kind of change (moved and turned, slid 8 cm, door swung, blanket folded, removed, added, and an area the second walk never saw). A GitHub Action rebuilds it from the current code on every push. Real-room results follow.
 
@@ -123,6 +125,11 @@ recording B ─┘                                 └─ visibility test B→A 
    With `--vlm claude`, a vision model writes the sentence, but it receives the numbers as fixed facts.
    So the geometry and the words always agree.
 8. **Robot view.** I project both scans to 2D occupancy grids at robot body height and plan the same A* path in each. The report shows how a new obstacle changes the path.
+9. **Where to look next.** The surface the second walk never saw stays UNKNOWN. I place candidate cameras at 1.4 m
+   on the free floor, each looking at one unseen region, and count the unseen points each one would really see
+   (a ray cast against both meshes, so walls and furniture block the view). Unseen floor and walls count less than
+   unseen objects. The best 3 spots (greedy, each must add new points) appear in yellow in the report.
+   Every change also shows its evidence, e.g. *"median 24 of 24 views of the second walk saw through the old surface"*.
 
 ## Design choices and tradeoffs
 
@@ -156,15 +163,23 @@ The learned rule is not clearly better, so the simpler hand rule stays the defau
 The weights still teach something: the learned rule wants almost all rays to see through a point, and a hit with
 a large depth residual counts as evidence of change (an object that moved a little).
 
-## Limits
+## Where it fails
 
-- Non-rigid changes are reported as "modified" without detail (it does not say *how* a blanket was folded).
-- Objects smaller than about 6 cm are filtered out (LiDAR noise is about 1–2 cm).
-- Glass, mirrors and black surfaces give bad LiDAR depth.
-- The colour check cannot tell a local light change (a lamp, sunlight, a new shadow) from a change of the surface.
-  It also misses a flat object with the same colour as the surface under it (white paper on a white desk).
-- A symmetric object with no texture gets two possible turn angles (the report lists both).
-- Moves under about 5 cm are not reliable (synthetic test: an 8 cm move on a table is found, with a 5 cm distance error).
+I tested every case below on purpose. These are the known failures and the honest answers it gives instead.
+
+| Situation | What happens | Why |
+|---|---|---|
+| Object smaller than ~6 cm (a pen, keys) | Not reported | Filtered as noise; LiDAR depth noise is 1–2 cm and pixels are ~1 cm at 2 m |
+| Move under ~5 cm | Can be missed or measured roughly | Close to the alignment and depth error (an 8 cm move is found with a 1 cm error) |
+| Glass, mirrors, shiny black surfaces | Wrong or missing depth there | LiDAR does not return from them; Freespace cannot see through what the sensor cannot see |
+| A lamp switched on, sunlight, a new shadow | Can look like "surface changed" | The colour check removes one global brightness change, not local light |
+| Flat object with the same colour as its support (white paper on a white desk) | Not reported | Too thin for depth, no colour difference |
+| Plain symmetric object (no texture) turned | Two or more turn angles, or "uncertain" | Shape and texture fit equally; it says so instead of guessing |
+| Folded blanket, filled bag | "Modified", without detail | No rigid motion explains it; it does not model *how* it changed |
+| Something moved where the second walk never looked | "Unknown" + a "look here next" spot | By design: no evidence, no claim |
+| Two walks recorded at very different times of day | More false "surface changed" | Same as the light problem above |
+
+All results so far are on synthetic rooms. Real-room results follow.
 
 ## Tests
 

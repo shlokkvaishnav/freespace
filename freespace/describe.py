@@ -100,9 +100,11 @@ def template_sentence(label: str, f: dict) -> str:
     name = f"{f['colour']} {'object' if label == 'unknown object' else label}".strip()
     if f["status"] == "moved":
         turn = f"{abs(f['turned_deg'])}°"
-        if f.get("turn_alternatives_deg"):
-            alts = " or ".join(f"{a}°" for a in f["turn_alternatives_deg"])
-            turn += f" (or {alts}: its shape looks the same and the texture cannot tell)"
+        alts = f.get("turn_alternatives_deg") or []
+        if 0 < len(alts) <= 2:
+            turn += f" (or {' or '.join(f'{a}°' for a in alts)}: its shape looks the same and the texture cannot tell)"
+        elif len(alts) > 2:
+            turn += " (uncertain: the shape and texture are too plain to measure the turn)"
         motion = f.get("motion")
         if motion == "hinge":
             return f"The {name} swung {turn} about one of its edges, like a door opening or closing."

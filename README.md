@@ -45,6 +45,8 @@ python eval/run_eval.py out/synth/changes.json data/synth/gt.json
 
 1. Install **Stray Scanner** (free) on an iPhone/iPad with LiDAR.
 2. Record the room for 30–60 s. Move slowly. Point the phone at the floor and at the furniture.
+   Keep the lights and curtains the same for both walks, and record them close in time: the colour check removes
+   one global brightness difference, not a lamp switched on or a shadow in a new place.
 3. Move, add or remove some objects.
 4. Record again. Use a different path. Make sure that the two recordings overlap.
 5. Copy the two folders to the computer (Files app → share, or AirDrop) and run:
@@ -100,11 +102,17 @@ recording B ─┘                                 └─ visibility test B→A 
    and then the closest pair by CLIP appearance + size + colour wins.
    ICP between the two whole objects gives the move distance and the turn angle. A "move" smaller than
    max(2 cm, 3 × alignment error) with a turn under 5° is noise and is dropped.
-6. **Words.** CLIP names the object from an open lexicon of ~1,200 everyday object names (LVIS). If CLIP is not sure,
+6. **Colour check (flat things).** A book or a magazine is too thin for the depth test. So where *both* scans saw
+   the same surface (the same rule as above), I compare the fused colour of each point with the nearest point of
+   the other scan that faces the same way. One gain per colour channel removes the global exposure difference. I
+   compare chromaticity (hue), skip points near edges (their colour mixes two surfaces), and flag differences above
+   median + 6 × MAD. The height decides the kind: higher → flat object added, lower → removed, same height →
+   "surface changed" (only if the colour name changes, e.g. white → blue).
+7. **Words.** CLIP names the object from an open lexicon of ~1,200 everyday object names (LVIS). If CLIP is not sure,
    the name is "unknown object" with its colour and size. The sentence comes from a template with the measured numbers.
    With `--vlm claude`, a vision model writes the sentence, but it receives the numbers as fixed facts.
    So the geometry and the words always agree.
-7. **Robot view.** I project both scans to 2D occupancy grids at robot body height and plan the same A* path in each. The report shows how a new obstacle changes the path.
+8. **Robot view.** I project both scans to 2D occupancy grids at robot body height and plan the same A* path in each. The report shows how a new obstacle changes the path.
 
 ## Design choices and tradeoffs
 
@@ -126,6 +134,8 @@ recording B ─┘                                 └─ visibility test B→A 
 - Rigid moves only. A folded blanket or an opened door is "removed + added".
 - Objects smaller than about 6 cm are filtered out (LiDAR noise is about 1–2 cm).
 - Glass, mirrors and black surfaces give bad LiDAR depth.
+- The colour check cannot tell a local light change (a lamp, sunlight, a new shadow) from a change of the surface.
+  It also misses a flat object with the same colour as the surface under it (white paper on a white desk).
 - Symmetric objects (a box) can give a turn angle that is wrong by 90° or 180°.
 - Moves under about 5 cm are not reliable (synthetic test: an 8 cm move on a table is found, with a 5 cm distance error).
 

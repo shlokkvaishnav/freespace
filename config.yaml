@@ -46,6 +46,7 @@ objects:
   min_shift: 0.02           # a 'move' smaller than max(this, 3 x alignment RMSE) ...
   min_turn: 5.0             # ... and a turn smaller than this is noise, not a move
   max_fit_error: 0.05       # best rigid fit worse than this (median m) -> 'modified', not 'moved'
+  max_height_change: 0.5    # ... or its height changed by more than this fraction
   modified_overlap: 0.1     # unpaired removed + added regions, same colour, overlapping this much -> 'modified'
 
 fusion:                     # learned weights for the ray evidence (freespace/fusion.py)

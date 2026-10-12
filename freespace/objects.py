@@ -117,7 +117,10 @@ def support_height(points: np.ndarray, normals: np.ndarray, obj_pts: np.ndarray,
     fp = _flat(points, up)
     inside = np.all((fp >= lo) & (fp <= hi), axis=1)
     horizontal = np.abs(normals @ up) > 0.9
-    below = inside & horizontal & (h_all < h_obj.min() + 0.01) & (h_all > floor_h - 0.05)
+    # if only a flat top face is known, that face (and the rest of the top) must not count as its own support
+    top_only = np.ptp(h_obj) < 0.03
+    limit = h_obj.min() - 0.015 if top_only else h_obj.min() + 0.01
+    below = inside & horizontal & (h_all < limit) & (h_all > floor_h - 0.05)
     return float(np.percentile(h_all[below], 95)) if below.sum() >= 10 else floor_h
 
 
@@ -186,6 +189,13 @@ def merge_same_object(blobs: list[Blob], voxel: float) -> list[Blob]:
         _, uniq = np.unique(np.round(P / (voxel / 2)).astype(int), axis=0, return_index=True)
         out.append(Blob(b.side, P[uniq], C[uniq], changed=np.concatenate(ch)))
     return out
+
+
+def height_change(a: Blob, b: Blob, up: np.ndarray) -> float:
+    """Relative change of the height along gravity. A rigid object keeps its height (unless it tips over).
+    Height is used, not the horizontal sides: those depend on the outline and on what each walk saw."""
+    ha, hb = a.extent(up)[0], b.extent(up)[0]
+    return float(abs(ha - hb) / max(ha, hb, 0.05))
 
 
 def footprint_iou(a: Blob, b: Blob, up: np.ndarray) -> float:
@@ -294,8 +304,10 @@ def estimate_move(a: Blob, b: Blob, up: np.ndarray) -> tuple[np.ndarray, float, 
     if col[order[0]] < 0.75 * col[order[1]]:  # texture clearly prefers one turn
         T, e = distinct[order[0]]
         return T, e, []
-    T, e = distinct[0]
-    return T, e, [_yaw_of(T2, up) for T2, _ in distinct[1:]]
+    # texture cannot decide: prefer the smallest turn (objects are usually moved without turning)
+    k = int(np.argmin([abs(_yaw_of(T2, up)) for T2, _ in distinct]))
+    T, e = distinct[k]
+    return T, e, [_yaw_of(T2, up) for i, (T2, _) in enumerate(distinct) if i != k]
 
 
 def _icp_candidates(a: Blob, b: Blob, up: np.ndarray) -> list[tuple[np.ndarray, float]]:
@@ -379,7 +391,8 @@ def build_changes(removed: list[Blob], added: list[Blob], scan_a: Scan, scan_b: 
     for i, j in pairs:
         T, err, alts = estimate_move(removed[i], added[j], up)
         ch = Change(0, "moved", removed[i], added[j], T, yaw_alternatives=alts, fit_error=err)
-        if err > oc.max_fit_error:  # colour and size match, but no rigid motion explains the shape
+        if err > oc.max_fit_error or height_change(removed[i], added[j], up) > oc.max_height_change:
+            # colour matches, but no rigid motion explains the shape (or its height changed by more than half)
             ch.status, ch.T_move, ch.yaw_alternatives = "modified", None, []
         elif ch.distance < min_shift and abs(ch.yaw(up)) < oc.min_turn:
             continue  # same object, same place: noise from pose or depth, not a change

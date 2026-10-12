@@ -83,3 +83,48 @@ def test_flat_object_needs_colour_check(tmp_path_factory, tmp_path, colour_check
     mag = next(r for r in score["per_change"] if r["gt"] == "added magazine")
     assert mag["matched"] == colour_check, score
     assert score["precision"] == 1.0, score
+
+
+def _run(data, cfg=None):
+    gt = json.loads((data / "gt.json").read_text())
+    res = pipeline.run(data / "before", data / "after", cfg or load_config(), vlm="local",
+                       T_init=np.array(gt["T_after_before"]))
+    import tempfile
+    from pathlib import Path
+    summary = pipeline.save(res, Path(tempfile.mkdtemp()))
+    return summary, gt, evaluate(summary, gt)
+
+
+def _moved_near(summary, centre, radius=0.4):
+    for c in summary["changes"]:
+        if c["status"] in ("moved", "modified") and "after" in c and \
+                np.linalg.norm(np.array(c["after"]["center"]) - np.array(centre)) < radius:
+            return c
+    return None
+
+
+def test_symmetric_box_turn_resolved_by_texture(synth):
+    """The chair is a square box: 40 deg and 130 deg fit the shape equally; the texture must pick 40."""
+    summary, gt, _ = _run(synth)
+    chair = _moved_near(summary, gt["changes"][0]["after"])
+    assert chair is not None and chair["status"] == "moved"
+    assert abs(abs(chair["facts"]["turned_deg"]) - 40) < 10, chair["facts"]
+    assert chair["facts"]["turn_alternatives_deg"] == []
+
+
+def test_door_swing_is_a_hinge(tmp_path_factory):
+    data = make_pair(tmp_path_factory.mktemp("hinge"), n_frames=80, hinge=True)
+    summary, gt, score = _run(data)
+    assert score["recall"] == 1.0 and score["precision"] == 1.0, score
+    door = _moved_near(summary, gt["changes"][-1]["after"])
+    assert door["facts"]["motion"] == "hinge", door["facts"]
+    turns = [abs(door["facts"]["turned_deg"])] + door["facts"]["turn_alternatives_deg"]
+    assert any(abs(t - 70) < 10 for t in turns), door["facts"]
+
+
+def test_folded_blanket_is_modified(tmp_path_factory):
+    data = make_pair(tmp_path_factory.mktemp("folded"), n_frames=80, folded=True)
+    summary, gt, score = _run(data)
+    assert score["recall"] == 1.0 and score["precision"] == 1.0, score
+    blanket = next(r for r in score["per_change"] if r["gt"] == "modified blanket")
+    assert blanket["matched"], score

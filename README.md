@@ -104,6 +104,14 @@ recording B ─┘                                 └─ visibility test B→A 
    and then the closest pair by CLIP appearance + size + colour wins.
    ICP between the two whole objects gives the move distance and the turn angle. A "move" smaller than
    max(2 cm, 3 × alignment error) with a turn under 5° is noise and is dropped.
+   - **Symmetric shapes.** A square box fits equally well at 40° and 130°. Every turn that fits the shape about as
+     well as the best is a candidate; the surface texture picks one. If the texture cannot decide, the report says
+     so: "turned 70° (or 109°: its shape looks the same and the texture cannot tell)".
+   - **Kind of motion, from geometry only.** The rotation axis of the fitted move tells what happened, without
+     knowing what the object is: axis inside the object → *turned in place*; axis at its edge → *swung about an
+     edge* (a door); no turn and a short distance → *slid* (a drawer, a pushed box); otherwise → *moved*.
+   - **Modified.** A pair whose colour and size match but that no rigid move fits, or a removed and an added
+     region in the same place with the same colour, is *modified* (a folded blanket, a bag that was filled).
 6. **Colour check (flat things).** A book or a magazine is too thin for the depth test. So where *both* scans saw
    the same surface (the same rule as above), I compare the fused colour of each point with the nearest point of
    the other scan that faces the same way. One gain per colour channel removes the global exposure difference. I
@@ -150,12 +158,12 @@ a large depth residual counts as evidence of change (an object that moved a litt
 
 ## Limits
 
-- Rigid moves only. A folded blanket or an opened door is "removed + added".
+- Non-rigid changes are reported as "modified" without detail (it does not say *how* a blanket was folded).
 - Objects smaller than about 6 cm are filtered out (LiDAR noise is about 1–2 cm).
 - Glass, mirrors and black surfaces give bad LiDAR depth.
 - The colour check cannot tell a local light change (a lamp, sunlight, a new shadow) from a change of the surface.
   It also misses a flat object with the same colour as the surface under it (white paper on a white desk).
-- Symmetric objects (a box) can give a turn angle that is wrong by 90° or 180°.
+- A symmetric object with no texture gets two possible turn angles (the report lists both).
 - Moves under about 5 cm are not reliable (synthetic test: an 8 cm move on a table is found, with a 5 cm distance error).
 
 ## Tests

@@ -62,6 +62,11 @@ def log_rerun(res, path: Path) -> None:
         traj = np.stack([f.T_wc[:3, 3] for f in scan.frames])
         rec.log(f"world/cameras/{name}", rr.LineStrips3D([traj], colors=[col]), static=True)
 
+    for k, v in enumerate(res.views or [], 1):
+        rec.log(f"world/look_next/{k}",
+                rr.Arrows3D(origins=[v.position], vectors=[(v.target - v.position) * 0.4], colors=[(255, 200, 0)],
+                            labels=[f"look here next ({v.fraction:.0%} of unseen)"]), static=True)
+
     rec.log("map/before", rr.Image(grid_image(res.grid.before)), static=True)
     rec.log("map/after", rr.Image(grid_image(res.grid.after)), static=True)
     if res.paths:

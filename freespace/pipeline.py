@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 from rich.console import Console
 
-from . import appearance, change, costmap, describe, objects
+from . import appearance, change, costmap, describe, nbv, objects
 from .align import Alignment, align
 from .io import load_stray
 from .recon import Surface, fuse
@@ -33,6 +33,7 @@ class Result:
     floor_h: float
     grid: costmap.Grid
     paths: tuple | None
+    views: list = None       # where to look next (nbv.Viewpoint)
 
 
 class Timer:
@@ -93,12 +94,35 @@ def run(before: Path, after: Path, cfg, vlm: str = "local", cache_dir: Path | No
 
     with Timer(f"describe changes ({vlm})"):
         describe.describe_all(changes, A, B, floor_h, sb, cfg, vlm=vlm, cache_dir=cache_dir)
+        add_evidence(changes, sa, ev_a, sb, ev_b)
         for c in changes:
             con.print(f"  #{c.id} [bold]{c.status}[/] {c.label}: {c.description}")
 
     grid = costmap.build(sa.points, sb.points, up, floor_h)
     paths = costmap.demo_paths(grid)
-    return Result(A, B, sa, sb, ev_a, ev_b, naive_a, naive_b, al, changes, floor_h, grid, paths)
+    res = Result(A, B, sa, sb, ev_a, ev_b, naive_a, naive_b, al, changes, floor_h, grid, paths)
+    with Timer("where to look next"):
+        res.views = nbv.suggest(res, cfg)
+        for k, v in enumerate(res.views, 1):
+            con.print(f"  view {k}: covers {v.fraction:.0%} of the unseen surface")
+    return res
+
+
+def add_evidence(changes, sa, ev_a, sb, ev_b) -> None:
+    """Ray counts behind each change, so the report can say *why* (e.g. '9 of 10 views saw through it')."""
+    from scipy.spatial import cKDTree
+
+    for c in changes:
+        if c.flat:
+            c.facts["evidence"] = "colour only (too thin for the depth test)"
+            continue
+        side, surf, ev = (c.before, sa, ev_a) if c.before is not None else (c.after, sb, ev_b)
+        _, idx = cKDTree(surf.points).query(side.changed if side.changed is not None else side.points)
+        n_free, n_obs = int(np.median(ev.n_free[idx])), int(np.median(ev.n_obs[idx]))
+        if side is c.before:
+            c.facts["evidence"] = f"median {n_free} of {n_obs} views of the second walk saw through the old surface"
+        else:
+            c.facts["evidence"] = f"median {n_free} of {n_obs} views of the first walk saw empty space where it is now"
 
 
 def change_record(c: objects.Change, up: np.ndarray) -> dict:
@@ -135,6 +159,8 @@ def save(res: Result, out: Path) -> dict:
                       "icp_rmse_m": round(res.alignment.icp_rmse, 4)},
         "coverage": coverage_stats(res),
         "changes": [change_record(c, up) for c in res.changes],
+        "look_next": [{"camera": v.position.round(3).tolist(), "look_at": v.target.round(3).tolist(),
+                       "unseen_points": v.covers, "share_of_unseen": round(v.fraction, 3)} for v in (res.views or [])],
     }
     if res.paths:
         s, t, pb, pa = res.paths

@@ -63,6 +63,17 @@ appearance:                 # colour check, only where both scans saw the same s
   skip_near: 0.06           # ignore points this close to a change already found by geometry
   flat_height: 0.005        # new surface higher than this -> flat object added (lower -> removed)
 
+nbv:                        # where to look next (freespace/nbv.py)
+  max_height: 1.8           # unseen surface that matters to a robot: up to this height
+  voxel: 0.1                # thin unseen points to this grid
+  min_points: 10
+  spacing: 0.3              # candidate camera spots on the free floor, every 0.3 m
+  clearance: 0.3            # ... at least this far from obstacles
+  camera_height: 1.4
+  hfov: 60.0
+  max_range: 4.0
+  shell_weight: 0.2         # unseen floor / wall / ceiling counts this much (objects count 1)
+
 describe:
   vlm: local                # local (CLIP, no key) | claude (needs ANTHROPIC_API_KEY)
   model: claude-opus-5-5    # used only when vlm = claude

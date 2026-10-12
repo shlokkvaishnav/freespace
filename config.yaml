@@ -1,0 +1,43 @@
+# freespace settings. All lengths are in metres, all angles in degrees.
+
+io:
+  keyframe_trans: 0.05      # keep a frame when the camera moved this far ...
+  keyframe_rot: 5.0         # ... or turned this much since the last kept frame
+  max_frames: 400           # hard cap per scan (memory)
+  rgb_width: 960            # RGB is stored at this width for crops and matching
+  min_confidence: 1         # LiDAR confidence: 0 low, 1 medium, 2 high
+  max_depth: 4.5            # LiDAR is unreliable after this
+  up_axis: [0, 1, 0]        # ARKit world: +Y is up (gravity is -Y)
+  pose_convention: opencv   # opencv | opengl (set opengl if clouds look mirrored)
+
+recon:
+  voxel: 0.02               # TSDF voxel size
+  sdf_trunc: 0.08
+  points_voxel: 0.025       # downsample of the fused cloud used for change tests
+
+align:
+  retrieval_pairs: 24       # image pairs (A,B) used for cross-scan matching
+  ransac_iters: 4000
+  ransac_thresh: 0.05
+  icp_dist: 0.05
+  matcher: sift             # sift (default, no extra model) | lightglue (optional extra)
+
+change:
+  depth_tol_base: 0.03      # |depth residual| tolerance = base + rel * depth
+  depth_tol_rel: 0.01
+  min_obs: 3                # fewer depth observations than this -> UNKNOWN
+  free_ratio: 0.6           # share of observations that see through the point -> CHANGED
+  max_incidence: 75.0       # ignore grazing views (angle between ray and normal)
+  edge_thresh: 0.05         # skip depth pixels at depth discontinuities
+
+objects:
+  cluster_eps: 0.06
+  cluster_min_points: 25
+  min_extent: 0.06          # drop clusters smaller than this (largest side)
+  match_max_cost: 0.9       # removed<->added pairing threshold for "moved"
+
+describe:
+  vlm: local                # local (CLIP, no key) | claude (needs ANTHROPIC_API_KEY)
+  model: claude-opus-5-5    # used only when vlm = claude
+  views_per_change: 2
+  min_name_conf: 0.12       # below this CLIP score the name is 'unknown object'

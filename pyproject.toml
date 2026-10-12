@@ -1,0 +1,38 @@
+[project]
+name = "freespace"
+version = "0.1.0"
+description = "Visibility-aware 3D change detection between two phone RGB-D scans of a room"
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "numpy>=1.26,<2",
+    "scipy>=1.11",
+    "opencv-python>=4.9",
+    "open3d>=0.18",
+    "scikit-learn>=1.4",
+    "pyyaml>=6",
+    "typer>=0.12",
+    "rich>=13",
+    "pillow>=10",
+    "rerun-sdk>=0.18",
+    "torch>=2.3",
+    "transformers>=4.44",
+    "anthropic>=0.40",
+]
+
+[project.optional-dependencies]
+lightglue = ["lightglue @ git+https://github.com/cvg/LightGlue.git"]
+dev = ["pytest>=8"]
+
+[project.scripts]
+freespace = "freespace.cli:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

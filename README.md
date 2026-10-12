@@ -15,7 +15,7 @@ only did not look.
 ## Quick start
 
 Requirements: macOS (Apple Silicon) or Linux, Python 3.11. A GPU is not necessary.
-On macOS, Open3D needs `libusb`: `brew install libusb`.
+On macOS, Open3D needs `libusb`: `brew install libusb`. On Ubuntu: `sudo apt-get install libegl1 libgl1 libgomp1`.
 
 ```bash
 git clone https://github.com/shlokkvaishnav/freespace && cd freespace

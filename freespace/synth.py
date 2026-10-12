@@ -49,6 +49,8 @@ SCENE_B = STATIC + [CHAIR_B, SUITCASE, LAMP]
 # a small object on the table that moves only 8 cm (tests: objects on a shared surface, small moves)
 SHOEBOX_A = Obj("shoebox", (0.32, 0.12, 0.2), (3.0, 2.4), (230, 120, 40), base=0.75)
 SHOEBOX_B = Obj("shoebox", (0.32, 0.12, 0.2), (3.08, 2.4), (230, 120, 40), base=0.75)
+# a magazine lying flat on the floor: too thin for the depth test, only colour can find it
+BOOK = Obj("magazine", (0.3, 0.015, 0.22), (2.95, 1.95), (40, 70, 170))
 # an object no word list expects: an upright purple ring (used to test class-agnostic detection)
 ODD = Obj("ring sculpture", (0.66, 0.66, 0.16), (2.9, 0.7), (140, 60, 170), shape="torus")
 
@@ -189,12 +191,14 @@ def yaw_transform(deg: float, t: tuple[float, float, float]) -> np.ndarray:
     return G
 
 
-def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0, odd: bool = False, small: bool = False) -> Path:
+def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0, odd: bool = False, small: bool = False,
+              flat: bool = False) -> Path:
     """odd=True also adds an object with a shape and colour outside any word list.
-    small=True also puts a shoebox on the table and moves it by 8 cm."""
+    small=True also puts a shoebox on the table and moves it by 8 cm.
+    flat=True also adds a 1.5 cm magazine lying on the floor."""
     out = Path(out)
     scene_a = SCENE_A + ([SHOEBOX_A] if small else [])
-    scene_b = SCENE_B + ([ODD] if odd else []) + ([SHOEBOX_B] if small else [])
+    scene_b = SCENE_B + ([ODD] if odd else []) + ([SHOEBOX_B] if small else []) + ([BOOK] if flat else [])
     G_a = np.eye(4)
     G_b = yaw_transform(37.0, (0.8, 0.0, -1.3))  # B session frame differs from A
     write_stray(out / "before", Renderer(scene_a), trajectory("A", n_frames), G_a, seed)
@@ -218,6 +222,8 @@ def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0, odd: bool = F
     }
     if odd:
         gt["changes"].append({"label": ODD.name, "status": "added", "after": centre(ODD, G_b)})
+    if flat:
+        gt["changes"].append({"label": "magazine", "status": "added", "after": centre(BOOK, G_b)})
     if small:
         gt["changes"].append({"label": "shoebox", "status": "moved", "before": centre(SHOEBOX_A, G_b),
                               "after": centre(SHOEBOX_B, G_b), "distance": 0.08, "yaw": 0.0})

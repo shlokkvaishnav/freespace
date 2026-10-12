@@ -69,3 +69,17 @@ def test_small_move_on_table(tmp_path_factory, tmp_path):
     assert box["matched"], score
     assert box["move_err_m"] < 0.07, score
     assert score["precision"] == 1.0, score
+
+
+@pytest.mark.parametrize("colour_check", [True, False])
+def test_flat_object_needs_colour_check(tmp_path_factory, tmp_path, colour_check):
+    """A 1.5 cm magazine on the floor is too thin for the depth test: only the colour check finds it."""
+    data = make_pair(tmp_path_factory.mktemp("flat"), n_frames=80, flat=True)
+    cfg = load_config(overrides={"appearance.enabled": colour_check})
+    gt = json.loads((data / "gt.json").read_text())
+    res = pipeline.run(data / "before", data / "after", cfg, vlm="local",
+                       T_init=np.array(gt["T_after_before"]))
+    score = evaluate(pipeline.save(res, tmp_path), gt)
+    mag = next(r for r in score["per_change"] if r["gt"] == "added magazine")
+    assert mag["matched"] == colour_check, score
+    assert score["precision"] == 1.0, score

@@ -1,0 +1,62 @@
+name: Demo report
+
+# Rebuild the demo report on every push to main and publish it on GitHub Pages,
+# so the live page always shows what the current code does.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install system libraries for Open3D
+        run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libgomp1
+
+      - name: Install CPU PyTorch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Run the demo (synthetic room, every kind of change)
+        run: freespace demo --no-open | tee demo.log
+
+      - name: Collect the site
+        run: |
+          mkdir site
+          cp out/demo/report.html site/index.html
+          cp out/demo/changes.json site/changes.json
+          touch site/.nojekyll
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

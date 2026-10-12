@@ -13,19 +13,31 @@ only did not look.
 ## Quick start
 
 Requirements: macOS (Apple Silicon) or Linux, Python 3.11. A GPU is not necessary.
+On macOS, Open3D needs `libusb`: `brew install libusb`.
 
 ```bash
-git clone <this repo> && cd freespace
+git clone https://github.com/shlokkvaishnav/freespace && cd freespace
 python3.11 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"            # optional: pip install -e ".[lightglue]" for better matching
 
-# 1. No phone? Make a synthetic room pair with ground truth (about 1 min)
+freespace demo                      # renders a synthetic room pair, runs, scores, opens the report
+```
+
+`freespace demo` needs no phone. It makes a synthetic room with ground truth (one moved chair, one removed
+box, one added suitcase, and one lamp that the second walk never sees), runs the full pipeline,
+prints precision / recall, and opens `out/demo/report.html`. The steps one by one:
+
+```bash
 freespace synth data/synth
 freespace run --before data/synth/before --after data/synth/after --out out/synth
-open out/synth/report.html          # interactive 3D report, works offline after first load
-freespace view out/synth             # same result in the Rerun viewer
+open out/synth/report.html          # interactive 3D report
+freespace view out/synth            # same result in the Rerun viewer
 python eval/run_eval.py out/synth/changes.json data/synth/gt.json
 ```
+
+> If your project folder syncs with iCloud (for example `~/Documents`), put the venv outside it
+> (`python3.11 -m venv ~/.venvs/freespace`). iCloud can mark files as hidden, and Python then
+> skips the `.pth` file of the editable install (`ModuleNotFoundError: freespace`).
 
 ### Your own room
 

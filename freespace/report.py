@@ -112,7 +112,7 @@ aside{display:flex;flex-direction:column;gap:12px;min-width:0}
 .card{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--c);border-radius:8px;padding:10px 12px;cursor:pointer}
 .card h3{margin:0 0 4px;font-size:15px}.tag{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--c);font-weight:600}
 .card p{margin:4px 0}.imgs{display:flex;gap:6px;margin-top:6px}.imgs figure{margin:0;flex:1;min-width:0}
-.imgs img{width:100%;border-radius:4px;display:block}.imgs figcaption{font-size:11px;color:var(--muted)}
+.imgs img{width:100%;height:150px;object-fit:cover;border-radius:4px;display:block}.imgs figcaption{font-size:11px;color:var(--muted)}
 .muted{color:var(--muted);font-size:12px}
 section.box{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px}
 section.box h2{font-size:14px;margin:0 0 6px}.maps{display:flex;gap:8px}.maps figure{margin:0;flex:1;min-width:0}.maps img{width:100%;image-rendering:pixelated;border-radius:4px}

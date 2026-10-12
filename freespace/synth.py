@@ -1,0 +1,207 @@
+"""Synthetic room pair in Stray Scanner format, with ground truth.
+
+Used for tests and to run the full pipeline without a phone. The two scans
+differ by: one moved+rotated object, one removed object, one added object, and
+one object that scan B never sees (must come out UNKNOWN, not "removed").
+Scan B is written in its own world frame (random yaw + offset), like a second
+ARKit session.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+
+import cv2
+import numpy as np
+import open3d as o3d
+from scipy.spatial.transform import Rotation
+
+ROOM = np.array([5.0, 2.6, 4.0])  # x (width), y (height, up), z (depth)
+RGB_W, RGB_H, FX = 960, 720, 780.0
+D_W, D_H = 256, 192
+
+
+@dataclass
+class Obj:
+    name: str
+    size: tuple[float, float, float]          # x, y, z extents
+    pos: tuple[float, float]                  # x, z of the footprint centre (rests on floor or `base`)
+    color: tuple[int, int, int]
+    yaw: float = 0.0
+    base: float = 0.0                         # height of the bottom face
+    shape: str = "box"                        # box | cylinder
+
+
+STATIC = [
+    Obj("table", (1.4, 0.75, 0.8), (3.2, 2.6), (150, 100, 60)),
+    Obj("bookshelf", (1.0, 1.8, 0.35), (1.0, 3.75), (90, 60, 40)),
+    Obj("sofa", (1.8, 0.8, 0.85), (1.1, 0.6), (60, 80, 140)),
+]
+CHAIR_A = Obj("chair", (0.5, 0.95, 0.5), (2.4, 1.6), (200, 40, 40))
+CHAIR_B = Obj("chair", (0.5, 0.95, 0.5), (3.6, 1.2), (200, 40, 40), yaw=40.0)
+BOX = Obj("cardboard box", (0.45, 0.35, 0.4), (4.3, 1.0), (190, 160, 110))
+SUITCASE = Obj("suitcase", (0.45, 0.7, 0.25), (1.9, 1.9), (30, 140, 90))
+LAMP = Obj("lamp", (0.3, 1.5, 0.3), (4.6, 3.6), (230, 220, 120), shape="cylinder")  # hidden from B
+
+SCENE_A = STATIC + [CHAIR_A, BOX, LAMP]
+SCENE_B = STATIC + [CHAIR_B, SUITCASE, LAMP]
+
+
+def _mesh(o: Obj) -> o3d.geometry.TriangleMesh:
+    sx, sy, sz = o.size
+    if o.shape == "cylinder":
+        m = o3d.geometry.TriangleMesh.create_cylinder(radius=sx / 2, height=sy, resolution=24)
+        m.rotate(Rotation.from_euler("x", -90, degrees=True).as_matrix(), center=(0, 0, 0))
+        m.translate((0, sy / 2, 0))
+    else:
+        m = o3d.geometry.TriangleMesh.create_box(sx, sy, sz)
+        m.translate((-sx / 2, 0, -sz / 2))
+    m.rotate(Rotation.from_euler("y", o.yaw, degrees=True).as_matrix(), center=(0, 0, 0))
+    m.translate((o.pos[0], o.base, o.pos[1]))
+    return m
+
+
+def _room_meshes() -> list[tuple[str, o3d.geometry.TriangleMesh, tuple[int, int, int]]]:
+    W, H, D = ROOM
+    t = 0.05
+    parts = [
+        ("floor", (W, t, D), (0, -t, 0), (170, 170, 175)),
+        ("ceiling", (W, t, D), (0, H, 0), (240, 240, 240)),
+        ("wall", (t, H, D), (-t, 0, 0), (220, 215, 200)),
+        ("wall", (t, H, D), (W, 0, 0), (215, 220, 205)),
+        ("wall", (W, H, t), (0, 0, -t), (205, 215, 220)),
+        ("wall", (W, H, t), (0, 0, D), (225, 210, 210)),
+    ]
+    out = []
+    for name, size, off, col in parts:
+        m = o3d.geometry.TriangleMesh.create_box(*size)
+        m.translate(off)
+        out.append((name, m, col))
+    return out
+
+
+class Renderer:
+    def __init__(self, objs: list[Obj]):
+        self.scene = o3d.t.geometry.RaycastingScene()
+        self.colors = []
+        for name, m, col in _room_meshes() + [(o.name, _mesh(o), o.color) for o in objs]:
+            self.scene.add_triangles(o3d.t.geometry.TriangleMesh.from_legacy(m))
+            self.colors.append(np.array(col, np.float32))
+        self.colors = np.stack(self.colors)
+
+    def render(self, T_wc: np.ndarray, w: int, h: int, fx: float):
+        u, v = np.meshgrid(np.arange(w), np.arange(h))  # same pixel convention as the loader
+        d_cam = np.stack([(u - w / 2) / fx, (v - h / 2) / fx, np.ones_like(u)], -1).reshape(-1, 3)
+        d_w = d_cam @ T_wc[:3, :3].T
+        o_w = np.broadcast_to(T_wc[:3, 3], d_w.shape)
+        rays = o3d.core.Tensor(np.concatenate([o_w, d_w], 1).astype(np.float32))
+        ans = self.scene.cast_rays(rays)
+        z = ans["t_hit"].numpy().reshape(h, w)  # direction has unit camera-z, so t == depth
+        gid = ans["geometry_ids"].numpy().reshape(h, w)
+        z[~np.isfinite(z)] = 0
+        hit = (o_w + d_w * z.reshape(-1, 1)).reshape(h, w, 3)
+        return z, gid, hit
+
+    def rgb(self, T_wc: np.ndarray) -> np.ndarray:
+        z, gid, hit = self.render(T_wc, RGB_W, RGB_H, FX)
+        base = self.colors[np.clip(gid, 0, len(self.colors) - 1)]
+        img = base * _texture(hit)[..., None]
+        return np.clip(img, 0, 255).astype(np.uint8)
+
+    def depth(self, T_wc: np.ndarray, rng: np.random.Generator) -> np.ndarray:
+        z, _, _ = self.render(T_wc, D_W, D_H, FX * D_W / RGB_W)
+        noise = rng.normal(0, 0.004 + 0.004 * z)
+        return np.where(z > 0, z + noise, 0).astype(np.float32)
+
+
+def _texture(p: np.ndarray) -> np.ndarray:
+    """Solid 3D value-noise texture, so features are consistent across views."""
+    out = np.zeros(p.shape[:2], np.float32)
+    for scale, amp in ((0.25, 0.25), (0.08, 0.15), (0.03, 0.1)):
+        c = np.floor(p / scale).astype(np.int64)
+        hsh = (c[..., 0] * 73856093) ^ (c[..., 1] * 19349663) ^ (c[..., 2] * 83492791)
+        out += amp * ((hsh % 1000) / 1000.0 - 0.5)
+    return 0.85 + out
+
+
+def look_at(eye: np.ndarray, target: np.ndarray) -> np.ndarray:
+    """Camera-to-world, OpenCV axes (x right, y down, z forward), world +Y up."""
+    z = target - eye
+    z /= np.linalg.norm(z)
+    x = np.cross(z, [0, 1, 0])  # right = forward x up  (with y-down camera)
+    x /= np.linalg.norm(x)
+    y = np.cross(z, x)
+    T = np.eye(4)
+    T[:3, :3] = np.stack([x, y, z], 1)
+    T[:3, 3] = eye
+    return T
+
+
+def trajectory(kind: str, n: int) -> list[np.ndarray]:
+    poses = []
+    for t in np.linspace(0, 1, n):
+        if kind == "A":  # walk along the front wall, look into the room
+            eye = np.array([0.7 + 3.6 * t, 1.45, 0.35 + 0.15 * np.sin(6 * t)])
+            target = np.array([2.5 + 1.8 * np.sin(2 * np.pi * t), 0.6, 2.6])
+        else:  # walk along the back-left of the room, look towards the front-right
+            eye = np.array([0.6 + 1.8 * t, 1.3, 2.4 + 0.9 * t])
+            target = np.array([4.2 - 1.2 * t, 0.4, 0.8 - 0.2 * t])
+        poses.append(look_at(eye, target))
+    return poses
+
+
+def write_stray(folder: Path, renderer: Renderer, poses: list[np.ndarray], G: np.ndarray, seed: int):
+    """Render poses (true world) and write them in a session frame: T_session = G @ T_true."""
+    rng = np.random.default_rng(seed)
+    (folder / "depth").mkdir(parents=True, exist_ok=True)
+    (folder / "confidence").mkdir(exist_ok=True)
+    vw = cv2.VideoWriter(str(folder / "rgb.mp4"), cv2.VideoWriter_fourcc(*"mp4v"), 30, (RGB_W, RGB_H))
+    rows = []
+    for i, T in enumerate(poses):
+        vw.write(cv2.cvtColor(renderer.rgb(T), cv2.COLOR_RGB2BGR))
+        d = renderer.depth(T, rng)
+        cv2.imwrite(str(folder / "depth" / f"{i:06d}.png"), (d * 1000).astype(np.uint16))
+        cv2.imwrite(str(folder / "confidence" / f"{i:06d}.png"), np.full(d.shape, 2, np.uint8))
+        Ts = G @ T
+        q = Rotation.from_matrix(Ts[:3, :3]).as_quat()
+        rows.append([i / 30, i, *Ts[:3, 3], *q])
+    vw.release()
+    np.savetxt(folder / "odometry.csv", np.array(rows), delimiter=",",
+               header="timestamp, frame, x, y, z, qx, qy, qz, qw", comments="")
+    K = np.array([[FX, 0, RGB_W / 2], [0, FX, RGB_H / 2], [0, 0, 1]])
+    np.savetxt(folder / "camera_matrix.csv", K, delimiter=",")
+
+
+def yaw_transform(deg: float, t: tuple[float, float, float]) -> np.ndarray:
+    G = np.eye(4)
+    G[:3, :3] = Rotation.from_euler("y", deg, degrees=True).as_matrix()
+    G[:3, 3] = t
+    return G
+
+
+def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0) -> Path:
+    out = Path(out)
+    G_a = np.eye(4)
+    G_b = yaw_transform(37.0, (0.8, 0.0, -1.3))  # B session frame differs from A
+    write_stray(out / "before", Renderer(SCENE_A), trajectory("A", n_frames), G_a, seed)
+    write_stray(out / "after", Renderer(SCENE_B), trajectory("B", n_frames), G_b, seed + 1)
+
+    def centre(o: Obj, G: np.ndarray) -> list[float]:
+        p = np.array([o.pos[0], o.base + o.size[1] / 2, o.pos[1]])
+        return (G[:3, :3] @ p + G[:3, 3]).round(3).tolist()
+
+    gt = {
+        "frame": "after",  # coordinates below are in the 'after' session frame
+        "T_after_before": G_b.tolist(),
+        "changes": [
+            {"label": "chair", "status": "moved", "before": centre(CHAIR_A, G_b), "after": centre(CHAIR_B, G_b),
+             "distance": float(np.hypot(CHAIR_B.pos[0] - CHAIR_A.pos[0], CHAIR_B.pos[1] - CHAIR_A.pos[1])),
+             "yaw": CHAIR_B.yaw - CHAIR_A.yaw},
+            {"label": "cardboard box", "status": "removed", "before": centre(BOX, G_b)},
+            {"label": "suitcase", "status": "added", "after": centre(SUITCASE, G_b)},
+        ],
+        "unobserved_in_after": [{"label": "lamp", "center": centre(LAMP, G_b)}],
+    }
+    (out / "gt.json").write_text(json.dumps(gt, indent=2))
+    return out

@@ -188,6 +188,7 @@ def build_changes(removed: list[Blob], added: list[Blob], scan_a: Scan, scan_b: 
             c = crops(b, scan)
             b.embedding = features.embed(c).mean(0) if c else None
 
+    oc = cfg.objects
     pairs = []
     if removed and added:
         C = np.full((len(removed), len(added)), 9.0)
@@ -197,9 +198,13 @@ def build_changes(removed: list[Blob], added: list[Blob], scan_a: Scan, scan_b: 
                     continue
                 app = 1 - float(r.embedding @ a.embedding) / (
                     np.linalg.norm(r.embedding) * np.linalg.norm(a.embedding))
-                C[i, j] = 1.5 * app + size_cost(r, a, up) + 0.8 * colour_cost(r, a)
+                col, size = colour_cost(r, a), size_cost(r, a, up)
+                # gates: a move keeps its colour and its size; only then compare the total
+                if col > oc.max_colour_diff or size > oc.max_size_diff:
+                    continue
+                C[i, j] = app + size + col
         ri, ai = linear_sum_assignment(C)
-        pairs = [(i, j) for i, j in zip(ri, ai) if C[i, j] < cfg.objects.match_max_cost]
+        pairs = [(i, j) for i, j in zip(ri, ai) if C[i, j] < oc.match_max_cost]
 
     changes: list[Change] = []
     used_r, used_a = {i for i, _ in pairs}, {j for _, j in pairs}

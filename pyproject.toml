@@ -5,7 +5,7 @@ description = "Visibility-aware 3D change detection between two phone RGB-D scan
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
-    "numpy>=1.26,<2",
+    "numpy>=2.0",
     "scipy>=1.11",
     "opencv-python>=4.9",
     "open3d>=0.18",

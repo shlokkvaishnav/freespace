@@ -23,7 +23,8 @@ def device() -> torch.device:
 def clip():
     from transformers import CLIPModel, CLIPProcessor
 
-    return CLIPModel.from_pretrained(CLIP_NAME).eval().to(device()), CLIPProcessor.from_pretrained(CLIP_NAME)
+    # this checkpoint ships only pytorch_model.bin (loaded weights-only by transformers)
+    return CLIPModel.from_pretrained(CLIP_NAME, use_safetensors=False).eval().to(device()), CLIPProcessor.from_pretrained(CLIP_NAME)
 
 
 @torch.no_grad()

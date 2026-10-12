@@ -77,7 +77,7 @@ def run(before: Path, after: Path, cfg, vlm: str = "local", cache_dir: Path | No
     up = B.up / np.linalg.norm(B.up)
     floor_h = float(np.percentile(np.concatenate([sa.points, sb.points]) @ up, 2))
     with Timer(f"describe changes ({vlm})"):
-        describe.describe_all(changes, A, B, floor_h, cfg, vlm=vlm, cache_dir=cache_dir)
+        describe.describe_all(changes, A, B, floor_h, sb, cfg, vlm=vlm, cache_dir=cache_dir)
         for c in changes:
             con.print(f"  #{c.id} [bold]{c.status}[/] {c.label}: {c.description}")
 

@@ -50,7 +50,19 @@ def colour_name(rgb01: np.ndarray) -> str:
 
 # ---------------------------------------------------------------- geometry facts
 
-def facts(ch: Change, scan_a: Scan, floor_h: float, up: np.ndarray) -> dict:
+def support_height(points: np.ndarray, normals: np.ndarray, blob_pts: np.ndarray, up: np.ndarray, floor_h: float) -> float:
+    """Height of the highest horizontal surface directly under the object (floor, table top, shelf)."""
+    h_all, h_obj = points @ up, blob_pts @ up
+    flat = lambda p: p - np.outer(p @ up, up)
+    lo, hi = flat(blob_pts).min(0), flat(blob_pts).max(0)
+    fp = flat(points)
+    inside = np.all((fp >= lo) & (fp <= hi), axis=1)
+    horizontal = np.abs(normals @ up) > 0.9
+    below = inside & horizontal & (h_all < h_obj.min() + 0.01) & (h_all > floor_h - 0.05)
+    return float(np.percentile(h_all[below], 95)) if below.sum() >= 10 else floor_h
+
+
+def facts(ch: Change, scan_a: Scan, floor_h: float, up: np.ndarray, scene) -> dict:
     """Plain numbers about a change, all in metres / degrees, in the shared frame."""
     b = ch.blob
     h = b.points @ up
@@ -58,7 +70,7 @@ def facts(ch: Change, scan_a: Scan, floor_h: float, up: np.ndarray) -> dict:
     out = {
         "status": ch.status,
         "size_m": {"height": round(float(ext[0]), 2), "width": round(float(ext[1]), 2), "depth": round(float(ext[2]), 2)},
-        "rests_at_height_m": round(float(np.percentile(h, 3) - floor_h), 2),
+        "rests_at_height_m": round(max(0.0, support_height(scene.points, scene.normals, b.points, up, floor_h) - floor_h), 2),
         "colour": colour_name(np.median(b.colors, 0)),
     }
     if ch.status == "moved":
@@ -184,14 +196,14 @@ def claude_label(images_before: list[np.ndarray], images_after: list[np.ndarray]
 
 # ---------------------------------------------------------------- entry point
 
-def describe_all(changes: list[Change], scan_a: Scan, scan_b: Scan, floor_h: float, cfg,
+def describe_all(changes: list[Change], scan_a: Scan, scan_b: Scan, floor_h: float, scene, cfg,
                  vlm: str = "local", cache_dir: Path | None = None) -> None:
     up = scan_b.up / np.linalg.norm(scan_b.up)
     n = cfg.describe.views_per_change
     for ch in changes:
         before = crops(ch.before, scan_a)[:n] if ch.before is not None else []
         after = crops(ch.after, scan_b)[:n] if ch.after is not None else []
-        f = facts(ch, scan_a, floor_h, up)
+        f = facts(ch, scan_a, floor_h, up, scene)
         imgs = [im for im in before + after if im.size and min(im.shape[:2]) >= 16]
         if imgs:
             ch.label, ch.label_score = clip_label(imgs, cfg.describe.min_name_conf)

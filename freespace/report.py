@@ -75,6 +75,7 @@ def write_html(res, summary: dict, path: Path) -> None:
                 boxes.append({"side": side, "min": rec[side]["bbox_min"], "max": rec[side]["bbox_max"],
                               "center": rec[side]["center"]})
         cards.append({**{k: rec[k] for k in ("id", "status", "label", "description", "confidence")},
+                      "evidence": rec["facts"].get("evidence", ""),
                       "facts": rec["facts"], "imgs": imgs, "boxes": boxes,
                       "colour": "#%02x%02x%02x" % STATUS_COLOUR[c.status]})
 
@@ -86,6 +87,7 @@ def write_html(res, summary: dict, path: Path) -> None:
                **summary.get("navigation", {})}
 
     data = {"layers": layers, "changes": cards, "nav": nav, "coverage": summary["coverage"],
+            "look": summary.get("look_next", []),
             "alignment": summary["alignment"], "up": (res.scan_b.up / np.linalg.norm(res.scan_b.up)).tolist()}
     html = TEMPLATE.replace("/*DATA*/", json.dumps(data))
     path.write_text(html)
@@ -168,6 +170,13 @@ for (const c of D.changes){
     boxGroup.add(new THREE.ArrowHelper(d.clone().normalize(), a, d.length(), col, Math.min(0.15, d.length()*0.3), 0.06));
   }
 }
+// where to look next: a yellow camera marker and its view direction
+for (const [k, v] of D.look.entries()){
+  const p = new THREE.Vector3(...v.camera), t = new THREE.Vector3(...v.look_at), d = t.clone().sub(p);
+  boxGroup.add(new THREE.ArrowHelper(d.clone().normalize(), p, Math.min(1.0, d.length()), 0xffc800, 0.15, 0.1));
+  const s = new THREE.Mesh(new THREE.SphereGeometry(0.06), new THREE.MeshBasicMaterial({color: 0xffc800}));
+  s.position.copy(p); boxGroup.add(s);
+}
 // initial camera: fit the 2nd scan
 const box = new THREE.Box3().setFromObject(groups.after || groups.before);
 const ctr = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3()).length();
@@ -187,13 +196,23 @@ matchMedia('(prefers-color-scheme: dark)').addEventListener('change', bg);
 // side panel
 const side = document.getElementById('side');
 const n = s => D.changes.filter(c => c.status === s).length;
-document.getElementById('sub').textContent = `${D.changes.length} changes: ${n('moved')} moved, ${n('added')} added, ${n('removed')} removed. Click a card to fly to it.`;
+const kinds = ['moved', 'added', 'removed', 'modified', 'surface_changed'].filter(k => n(k)).map(k => `${n(k)} ${k.replace('_', ' ')}`);
+document.getElementById('sub').textContent = `${D.changes.length} changes: ${kinds.join(', ')}. Click a card to fly to it.`;
 const esc = s => String(s).replace(/[&<>"]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]));
 for (const c of D.changes){
   const el = document.createElement('div'); el.className = 'card'; el.style.setProperty('--c', c.colour);
   const imgs = ['before','after'].filter(k => c.imgs[k]).map(k => `<figure><img src="${c.imgs[k]}" alt="${k}"><figcaption>${k}</figcaption></figure>`).join('');
-  el.innerHTML = `<span class="tag">${esc(c.status)}</span><h3>#${c.id} ${esc(c.label)}</h3><p>${esc(c.description)}</p><div class="muted">confidence ${c.confidence}</div><div class="imgs">${imgs}</div>`;
+  el.innerHTML = `<span class="tag">${esc(c.status)}</span><h3>#${c.id} ${esc(c.label)}</h3><p>${esc(c.description)}</p><div class="muted">${esc(c.evidence)}</div><div class="imgs">${imgs}</div>`;
   el.onclick = () => focus(c); side.appendChild(el);
+}
+if (D.look.length){
+  const s = document.createElement('section'); s.className = 'box';
+  const tot = D.look.reduce((a, v) => a + v.share_of_unseen, 0);
+  s.innerHTML = `<h2>Look here next</h2><p class="muted">The second walk did not see part of the room, so Freespace says
+  "unknown" there and does not guess. These ${D.look.length} spots (yellow in 3D, camera at 1.4 m) would show
+  ${(100*tot).toFixed(0)}% of that unseen surface.</p>` + D.look.map((v, k) =>
+  `<div class="muted">#${k+1}: ${(100*v.share_of_unseen).toFixed(0)}% of the unseen surface</div>`).join('');
+  side.appendChild(s);
 }
 if (D.nav){
   const s = document.createElement('section'); s.className = 'box';

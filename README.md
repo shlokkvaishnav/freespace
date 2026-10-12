@@ -66,6 +66,26 @@ export ANTHROPIC_API_KEY=...
 freespace run ... --vlm claude
 ```
 
+### Score a run on your own room
+
+Real rooms have no 3D ground truth, so a person reviews the detections:
+
+1. While you record, write `data/room/gt.json` — one line per real change, with tape-measured moves:
+   ```json
+   {"changes": [{"name": "chair", "status": "moved", "distance": 0.9, "turn": 30},
+                {"name": "backpack", "status": "added"},
+                {"name": "box", "status": "removed"}]}
+   ```
+2. Run Freespace and the naive baseline, then review each one (crops are in `out/<run>/crops/`):
+   ```bash
+   freespace run --before data/room/before --after data/room/after --out out/room
+   freespace run --before data/room/before --after data/room/after --out out/room_naive --baseline naive
+   freespace label out/room --gt data/room/gt.json         # answer: real-change number, w (wrong), u (unseen area called removed)
+   freespace label out/room_naive --gt data/room/gt.json
+   python eval/run_eval.py out/room/changes.json data/room/gt.json --review out/room/review.json
+   ```
+   The score has precision, recall, median move and turn error, and how often an unseen area was called "removed".
+
 ## Outputs
 
 | File | Content |
@@ -145,6 +165,21 @@ recording B ─┘                                 └─ visibility test B→A 
 - **Why 4 DoF?** Gravity from the IMU is good. Fixing roll and pitch makes the RANSAC minimal set 2 points and removes a large class of wrong solutions in rooms with repeated structure.
 - **Why numbers from geometry and names from a model?** A VLM can guess the wrong distance. Geometry cannot guess the name. Each part does what it is good at.
 - **Local by default.** No API key, same output each run, and it can run on a robot. Claude is an option for richer language.
+
+## Result: the ray test against a naive distance diff
+
+The same pipeline with only the change test swapped (`--baseline naive`: a point is "changed" when no point of
+the other scan is within 5 cm). Demo room, alignment estimated, 7 real changes:
+
+| Change test | Detections | Precision | Recall |
+|---|---|---|---|
+| Naive distance diff | 14 | 0.36 | 0.71 |
+| **Freespace ray test** | **7** | **1.00** | **1.00** |
+
+The naive diff calls every area the second walk did not see "changed": walls, the back of the sofa, the floor
+behind the table. Those false objects also break the move matching. The ray test calls them *unknown* instead.
+Reproduce: `freespace demo`, then `freespace run --before data/demo/before --after data/demo/after --out out/naive --baseline naive`
+and `python eval/run_eval.py out/naive/changes.json data/demo/gt.json`.
 
 ## Experiment: does a learned rule beat the hand rule?
 

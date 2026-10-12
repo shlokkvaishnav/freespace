@@ -28,13 +28,15 @@ change:
   min_obs: 3                # fewer depth observations than this -> UNKNOWN
   free_ratio: 0.6           # share of observations that see through the point -> CHANGED
   max_incidence: 75.0       # ignore grazing views (angle between ray and normal)
-  edge_thresh: 0.05         # skip depth pixels at depth discontinuities
+  edge_thresh: 0.08         # skip depth pixels where depth jumps > 8% inside a 3x3 window (discontinuities)
 
 objects:
   cluster_eps: 0.06
   cluster_min_points: 25
   min_extent: 0.06          # drop clusters smaller than this (largest side)
   match_max_cost: 0.9       # removed<->added pairing threshold for "moved"
+  max_colour_diff: 0.25     # gate: median RGB distance (0..1 units) between removed and added part
+  max_size_diff: 0.4        # gate: mean relative difference of (height, long side, short side)
 
 describe:
   vlm: local                # local (CLIP, no key) | claude (needs ANTHROPIC_API_KEY)

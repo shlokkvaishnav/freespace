@@ -49,7 +49,8 @@ def depth_edges(depth: np.ndarray, thresh: float) -> np.ndarray:
     d[invalid] = np.nan
     hi = maximum_filter(np.nan_to_num(d, nan=0.0), size=3)
     lo = minimum_filter(np.nan_to_num(d, nan=1e3), size=3)
-    return invalid | (hi - lo > thresh)
+    # relative jump: a floor seen at a low angle changes a lot per pixel, an object edge changes by a large *fraction*
+    return invalid | (hi - lo > thresh * np.maximum(lo, 0.3))
 
 
 def accumulate(points: np.ndarray, normals: np.ndarray, other: Scan, cfg) -> tuple[np.ndarray, np.ndarray]:

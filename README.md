@@ -1,5 +1,7 @@
 # Freespace — what changed in the room?
 
+![CI](https://github.com/shlokkvaishnav/freespace/actions/workflows/ci.yml/badge.svg) ![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)
+
 Freespace compares two phone recordings of the same room. It finds the objects that
 were **moved**, **added** or **removed**, shows them in 3D, and describes each one in
 a sentence. Example: *"The red chair moved 1.26 m to the right and turned 40°. It is now on the floor."*
@@ -152,3 +154,7 @@ freespace/  io/stray.py  recon.py  align.py  change.py  objects.py  describe.py 
 eval/      run_eval.py  (precision / recall / move error against gt.json)
 tests/     test_geometry.py  test_synthetic.py
 ```
+
+## License
+
+MIT. See [LICENSE](LICENSE).

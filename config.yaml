@@ -44,6 +44,9 @@ objects:
   min_shift: 0.02           # a 'move' smaller than max(this, 3 x alignment RMSE) ...
   min_turn: 5.0             # ... and a turn smaller than this is noise, not a move
 
+fusion:                     # learned weights for the ray evidence (freespace/fusion.py)
+  weights: []               # [bias, see_through_ratio, log_observations, hit_residual]; empty = hand rule
+
 appearance:                 # colour check, only where both scans saw the same surface
   enabled: true
   match_radius: 0.04        # pair each 'before' point with an 'after' point this close ...

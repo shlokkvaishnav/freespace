@@ -31,6 +31,7 @@ class Evidence:
     n_hit: np.ndarray   # (N,) frames that confirm the surface
     n_free: np.ndarray  # (N,) frames that see through it
     state: np.ndarray   # (N,) UNCHANGED / CHANGED / UNKNOWN
+    hit_res: np.ndarray | None = None  # (N,) mean |depth residual| / tolerance over the hits (0..1)
 
     @property
     def n_obs(self) -> np.ndarray:
@@ -53,11 +54,13 @@ def depth_edges(depth: np.ndarray, thresh: float) -> np.ndarray:
     return invalid | (hi - lo > thresh * np.maximum(lo, 0.3))
 
 
-def accumulate(points: np.ndarray, normals: np.ndarray, other: Scan, cfg) -> tuple[np.ndarray, np.ndarray]:
+def accumulate(points: np.ndarray, normals: np.ndarray, other: Scan, cfg) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Per point: (hits, see-throughs, mean |residual|/tolerance of the hits)."""
     c = cfg.change
     cos_max = np.cos(np.radians(c.max_incidence))
     n_hit = np.zeros(len(points), np.int32)
     n_free = np.zeros(len(points), np.int32)
+    res_sum = np.zeros(len(points))
 
     for f in other.frames:
         bad = depth_edges(f.depth, c.edge_thresh)
@@ -85,26 +88,37 @@ def accumulate(points: np.ndarray, normals: np.ndarray, other: Scan, cfg) -> tup
         idx, ui, vi = idx[ok], ui[ok], vi[ok]
         r = f.depth[vi, ui] - z[idx]
         tol = c.depth_tol_base + c.depth_tol_rel * z[idx]
+        hit = np.abs(r) <= tol
         n_free[idx[r > tol]] += 1
-        n_hit[idx[np.abs(r) <= tol]] += 1
-    return n_hit, n_free
+        n_hit[idx[hit]] += 1
+        np.add.at(res_sum, idx[hit], np.abs(r[hit]) / tol[hit])
+    return n_hit, n_free, res_sum / np.maximum(n_hit, 1)
 
 
-def classify(n_hit: np.ndarray, n_free: np.ndarray, cfg) -> np.ndarray:
+def classify(n_hit: np.ndarray, n_free: np.ndarray, cfg, hit_res: np.ndarray | None = None) -> np.ndarray:
+    """Hand rule: CHANGED if most observations see through the point.
+    With `fusion.weights` set (learned, see freespace/fusion.py): CHANGED if the logistic score > 0.5.
+    Too few observations -> UNKNOWN in both cases."""
     c = cfg.change
     n_obs = n_hit + n_free
     state = np.full(len(n_hit), UNCHANGED, np.int8)
     state[n_obs < c.min_obs] = UNKNOWN
-    changed = (n_obs >= c.min_obs) & (n_free >= c.free_ratio * n_obs)
-    state[changed] = CHANGED
+    w = cfg.get("fusion", {}).get("weights")
+    if w:
+        from .fusion import features, score
+
+        changed = score(features(n_hit, n_free, hit_res), w) > 0.5
+    else:
+        changed = n_free >= c.free_ratio * n_obs
+    state[(n_obs >= c.min_obs) & changed] = CHANGED
     return state
 
 
 def detect(points: np.ndarray, normals: np.ndarray, other: Scan, cfg) -> Evidence:
-    n_hit, n_free = accumulate(points, normals, other, cfg)
-    state = classify(n_hit, n_free, cfg)
+    n_hit, n_free, hit_res = accumulate(points, normals, other, cfg)
+    state = classify(n_hit, n_free, cfg, hit_res)
     state = smooth_states(points, state, radius=cfg.recon.points_voxel * 2.0)
-    return Evidence(n_hit, n_free, state)
+    return Evidence(n_hit, n_free, state, hit_res)
 
 
 def smooth_states(points: np.ndarray, state: np.ndarray, radius: float) -> np.ndarray:

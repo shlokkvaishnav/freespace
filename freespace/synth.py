@@ -30,7 +30,7 @@ class Obj:
     color: tuple[int, int, int]
     yaw: float = 0.0
     base: float = 0.0                         # height of the bottom face
-    shape: str = "box"                        # box | cylinder
+    shape: str = "box"                        # box | cylinder | torus
 
 
 STATIC = [
@@ -46,11 +46,17 @@ LAMP = Obj("lamp", (0.3, 1.5, 0.3), (4.6, 3.6), (230, 220, 120), shape="cylinder
 
 SCENE_A = STATIC + [CHAIR_A, BOX, LAMP]
 SCENE_B = STATIC + [CHAIR_B, SUITCASE, LAMP]
+# an object no word list expects: an upright purple ring (used to test class-agnostic detection)
+ODD = Obj("ring sculpture", (0.66, 0.66, 0.16), (2.9, 0.7), (140, 60, 170), shape="torus")
 
 
 def _mesh(o: Obj) -> o3d.geometry.TriangleMesh:
     sx, sy, sz = o.size
-    if o.shape == "cylinder":
+    if o.shape == "torus":
+        r_tube = sz / 2
+        m = o3d.geometry.TriangleMesh.create_torus(torus_radius=sx / 2 - r_tube, tube_radius=r_tube)
+        m.translate((0, sy / 2, 0))  # ring stands upright in the x-y plane
+    elif o.shape == "cylinder":
         m = o3d.geometry.TriangleMesh.create_cylinder(radius=sx / 2, height=sy, resolution=24)
         m.rotate(Rotation.from_euler("x", -90, degrees=True).as_matrix(), center=(0, 0, 0))
         m.translate((0, sy / 2, 0))
@@ -180,12 +186,14 @@ def yaw_transform(deg: float, t: tuple[float, float, float]) -> np.ndarray:
     return G
 
 
-def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0) -> Path:
+def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0, odd: bool = False) -> Path:
+    """odd=True also adds an object with a shape and colour outside any word list."""
     out = Path(out)
+    scene_b = SCENE_B + ([ODD] if odd else [])
     G_a = np.eye(4)
     G_b = yaw_transform(37.0, (0.8, 0.0, -1.3))  # B session frame differs from A
     write_stray(out / "before", Renderer(SCENE_A), trajectory("A", n_frames), G_a, seed)
-    write_stray(out / "after", Renderer(SCENE_B), trajectory("B", n_frames), G_b, seed + 1)
+    write_stray(out / "after", Renderer(scene_b), trajectory("B", n_frames), G_b, seed + 1)
 
     def centre(o: Obj, G: np.ndarray) -> list[float]:
         p = np.array([o.pos[0], o.base + o.size[1] / 2, o.pos[1]])
@@ -203,5 +211,7 @@ def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0) -> Path:
         ],
         "unobserved_in_after": [{"label": "lamp", "center": centre(LAMP, G_b)}],
     }
+    if odd:
+        gt["changes"].append({"label": ODD.name, "status": "added", "after": centre(ODD, G_b)})
     (out / "gt.json").write_text(json.dumps(gt, indent=2))
     return out

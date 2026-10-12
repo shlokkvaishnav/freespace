@@ -128,3 +128,13 @@ def test_folded_blanket_is_modified(tmp_path_factory):
     assert score["recall"] == 1.0 and score["precision"] == 1.0, score
     blanket = next(r for r in score["per_change"] if r["gt"] == "modified blanket")
     assert blanket["matched"], score
+
+
+def test_rich_scene_end_to_end(tmp_path_factory, tmp_path):
+    """The demo room: every kind of change at once, with the alignment estimated (not given)."""
+    data = make_pair(tmp_path_factory.mktemp("rich"), n_frames=80, small=True, hinge=True, folded=True, odd=True)
+    gt = json.loads((data / "gt.json").read_text())
+    res = pipeline.run(data / "before", data / "after", load_config(), vlm="local")
+    score = evaluate(pipeline.save(res, tmp_path), gt)
+    assert score["precision"] == 1.0 and score["recall"] == 1.0, score
+    assert score["unobserved_reported_as_removed"] == 0, score

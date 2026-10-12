@@ -41,12 +41,18 @@ def run(
 @app.command()
 def demo(out: Path = typer.Option(Path("out/demo"), help="Output folder"),
          no_open: bool = typer.Option(False, help="Do not open the report in a browser")):
-    """One command for reviewers: make the example pair, run it, open the report."""
+    """One command for reviewers: make the example pair, run it, open the report.
+
+    The demo room has every kind of change: a chair moved and turned, a shoebox slid 8 cm on the table,
+    a door swung open, a blanket folded, a box removed, a suitcase and an odd ring object added,
+    and a lamp that the second walk never sees (it must stay 'unknown')."""
     import webbrowser
+
+    from .synth import make_pair
 
     data = Path("data/demo")
     if not (data / "gt.json").exists():
-        synth(data)
+        make_pair(data, 120, small=True, hinge=True, folded=True, odd=True)
     run(before=data / "before", after=data / "after", out=out, vlm=None, config=None, gt_align=False)
     subprocess.run([sys.executable, str(Path(__file__).resolve().parent.parent / "eval" / "run_eval.py"),
                     str(out / "changes.json"), str(data / "gt.json")], check=False)

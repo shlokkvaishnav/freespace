@@ -55,3 +55,17 @@ def test_object_outside_lexicon_is_detected(tmp_path_factory, tmp_path):
     odd = next(r for r in score["per_change"] if r["gt"] == "added ring sculpture")
     assert odd["matched"], score
     assert score["recall"] == 1.0, score
+
+
+def test_small_move_on_table(tmp_path_factory, tmp_path):
+    """A shoebox on the table moves 8 cm: found as moved, not merged with the table."""
+    data = make_pair(tmp_path_factory.mktemp("small"), n_frames=80, small=True)
+    cfg = load_config()
+    gt = json.loads((data / "gt.json").read_text())
+    res = pipeline.run(data / "before", data / "after", cfg, vlm="local",
+                       T_init=np.array(gt["T_after_before"]))
+    score = evaluate(pipeline.save(res, tmp_path), gt)
+    box = next(r for r in score["per_change"] if r["gt"] == "moved shoebox")
+    assert box["matched"], score
+    assert box["move_err_m"] < 0.07, score
+    assert score["precision"] == 1.0, score

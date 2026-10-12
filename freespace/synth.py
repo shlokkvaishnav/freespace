@@ -46,6 +46,9 @@ LAMP = Obj("lamp", (0.3, 1.5, 0.3), (4.6, 3.6), (230, 220, 120), shape="cylinder
 
 SCENE_A = STATIC + [CHAIR_A, BOX, LAMP]
 SCENE_B = STATIC + [CHAIR_B, SUITCASE, LAMP]
+# a small object on the table that moves only 8 cm (tests: objects on a shared surface, small moves)
+SHOEBOX_A = Obj("shoebox", (0.32, 0.12, 0.2), (3.0, 2.4), (230, 120, 40), base=0.75)
+SHOEBOX_B = Obj("shoebox", (0.32, 0.12, 0.2), (3.08, 2.4), (230, 120, 40), base=0.75)
 # an object no word list expects: an upright purple ring (used to test class-agnostic detection)
 ODD = Obj("ring sculpture", (0.66, 0.66, 0.16), (2.9, 0.7), (140, 60, 170), shape="torus")
 
@@ -186,13 +189,15 @@ def yaw_transform(deg: float, t: tuple[float, float, float]) -> np.ndarray:
     return G
 
 
-def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0, odd: bool = False) -> Path:
-    """odd=True also adds an object with a shape and colour outside any word list."""
+def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0, odd: bool = False, small: bool = False) -> Path:
+    """odd=True also adds an object with a shape and colour outside any word list.
+    small=True also puts a shoebox on the table and moves it by 8 cm."""
     out = Path(out)
-    scene_b = SCENE_B + ([ODD] if odd else [])
+    scene_a = SCENE_A + ([SHOEBOX_A] if small else [])
+    scene_b = SCENE_B + ([ODD] if odd else []) + ([SHOEBOX_B] if small else [])
     G_a = np.eye(4)
     G_b = yaw_transform(37.0, (0.8, 0.0, -1.3))  # B session frame differs from A
-    write_stray(out / "before", Renderer(SCENE_A), trajectory("A", n_frames), G_a, seed)
+    write_stray(out / "before", Renderer(scene_a), trajectory("A", n_frames), G_a, seed)
     write_stray(out / "after", Renderer(scene_b), trajectory("B", n_frames), G_b, seed + 1)
 
     def centre(o: Obj, G: np.ndarray) -> list[float]:
@@ -213,5 +218,8 @@ def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0, odd: bool = F
     }
     if odd:
         gt["changes"].append({"label": ODD.name, "status": "added", "after": centre(ODD, G_b)})
+    if small:
+        gt["changes"].append({"label": "shoebox", "status": "moved", "before": centre(SHOEBOX_A, G_b),
+                              "after": centre(SHOEBOX_B, G_b), "distance": 0.08, "yaw": 0.0})
     (out / "gt.json").write_text(json.dumps(gt, indent=2))
     return out

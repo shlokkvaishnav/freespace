@@ -9,6 +9,11 @@ import numpy as np
 import torch
 
 CLIP_NAME = "openai/clip-vit-base-patch16"
+# The main branch has only pytorch_model.bin (a pickle). This revision is Hugging Face's
+# safetensors conversion of the same checkpoint (refs/pr/17, child of main commit 57c2164);
+# it adds model.safetensors and changes nothing else. Its tensors equal the .bin exactly
+# (checked: all 398 tensors, max abs difference 0). Pinning the hash keeps the weights fixed.
+CLIP_REVISION = "5ef227a78de3f75873f373246dac80def63b0003"
 
 
 def device() -> torch.device:
@@ -23,8 +28,8 @@ def device() -> torch.device:
 def clip():
     from transformers import CLIPModel, CLIPProcessor
 
-    # this checkpoint ships only pytorch_model.bin (loaded weights-only by transformers)
-    return CLIPModel.from_pretrained(CLIP_NAME, use_safetensors=False).eval().to(device()), CLIPProcessor.from_pretrained(CLIP_NAME)
+    model = CLIPModel.from_pretrained(CLIP_NAME, revision=CLIP_REVISION, use_safetensors=True)  # never a pickle
+    return model.eval().to(device()), CLIPProcessor.from_pretrained(CLIP_NAME, revision=CLIP_REVISION)
 
 
 @torch.no_grad()

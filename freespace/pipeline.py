@@ -52,6 +52,8 @@ def run(before: Path, after: Path, cfg, vlm: str = "local", cache_dir: Path | No
         T_init: np.ndarray | None = None, baseline: str = "freespace") -> Result:
     """baseline='naive' replaces the ray test by the plain cloud-to-cloud distance (for the comparison table);
     everything after it (objects, moves, words) stays the same."""
+    if vlm == "claude":
+        describe.require_anthropic()  # fail now, not after the slow steps
     with Timer("load recordings"):
         A, B = load_stray(before, cfg), load_stray(after, cfg)
         con.print(f"  before: {len(A.frames)} keyframes, after: {len(B.frames)} keyframes")

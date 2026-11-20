@@ -163,9 +163,20 @@ SYSTEM = (
 )
 
 
+def require_anthropic():
+    """Import the optional `anthropic` package, or say how to install it."""
+    try:
+        import anthropic
+    except ImportError as e:
+        raise ImportError("--vlm claude needs the optional 'anthropic' package: "
+                          "pip install -e \".[claude]\" (and set ANTHROPIC_API_KEY)") from e
+    return anthropic
+
+
 def claude_label(images_before: list[np.ndarray], images_after: list[np.ndarray], f: dict,
                  model: str, cache_dir: Path) -> dict | None:
-    from pydantic import BaseModel
+    anthropic = require_anthropic()
+    from pydantic import BaseModel  # installed with anthropic
 
     class Label(BaseModel):
         label: str
@@ -184,8 +195,6 @@ def claude_label(images_before: list[np.ndarray], images_after: list[np.ndarray]
     cache = cache_dir / f"{key}.json"
     if cache.exists():
         return json.loads(cache.read_text())
-
-    import anthropic
 
     client = anthropic.Anthropic()
     try:

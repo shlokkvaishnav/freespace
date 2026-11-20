@@ -101,7 +101,10 @@ recording B ─┘                                 └─ visibility test B→A 
 ### The ray test against a naive distance diff
 
 The same pipeline with only the change test swapped (`--baseline naive`: a point is "changed" when no point of
-the other scan is within 5 cm). Demo room, alignment estimated, 7 real changes:
+the other scan is within 5 cm). Demo room, alignment estimated, 7 real changes. This is one synthetic room
+from Freespace's own generator, with exact camera poses and all depth at full confidence, so 1.00 / 1.00 means
+"all 7 found, nothing false" in an easy setting, not a general accuracy figure. It is one noise seed; over
+3 seeds the mean is 0.95 / 0.95 (one seed reports the 8 cm shoebox slide as "modified"):
 
 | Change test | Detections | Precision | Recall |
 |---|---|---|---|
@@ -112,6 +115,26 @@ The naive diff calls every area the second walk did not see "changed": walls, th
 behind the table. Those false objects also break the move matching. The ray test calls them *unknown* instead.
 Reproduce: `freespace demo`, then `freespace run --before data/demo/before --after data/demo/after --out out/naive --baseline naive`
 and `python eval/run_eval.py out/naive/changes.json data/demo/gt.json`.
+
+### Pose drift and low-confidence depth (exploratory)
+
+The demo room has exact camera poses and all depth at full confidence. A real phone has neither. The
+generator can now add ARKit-like pose drift (a random walk, mostly yaw and horizontal position) and a
+0/1/2 confidence map with flying pixels at depth edges. The drift sizes are my assumptions, not
+measured ARKit figures. Demo room, alignment estimated, mean of 3 seeds
+([plan and full outcome](docs/drift-eval.md), [raw numbers](eval/results/drift.json)):
+
+| drift at end of walk | confidence | precision | recall | false change (cm² per m² of unchanged surface) |
+|---|---|---|---|---|
+| none | all high | 0.95 | 0.95 | 0 |
+| none | mixed | 0.76 | 0.76 | 18 |
+| 1° / 1.5 cm | mixed | 0.63 | 0.71 | 51 |
+| 2° / 3 cm | mixed | 0.57 | 0.67 | 136 |
+| 4° / 6 cm | mixed | 0.43 | 0.62 | 912 |
+
+The surface test holds up better than the object logic: up to 1° of drift under 1% of the unchanged
+surface is called changed, but the moved chair is reported as "modified" as soon as depth is noisier,
+and false objects appear from 2°. Reproduce: `python -m eval.drift_eval` (18 runs, about 15 minutes on a laptop CPU).
 
 ### Does a learned rule beat the hand rule?
 
@@ -138,7 +161,8 @@ On macOS, Open3D needs `libusb`: `brew install libusb`. On Ubuntu: `sudo apt-get
 ```bash
 git clone https://github.com/shlokkvaishnav/freespace && cd freespace
 python3.11 -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"            # optional: pip install -e ".[lightglue]" for better matching
+pip install -c requirements.lock -e ".[dev]"   # pinned versions that passed the tests
+# optional extras: ".[lightglue]" for better matching, ".[claude]" for --vlm claude
 
 freespace demo                      # renders a synthetic room pair, runs, scores, opens the report
 ```
@@ -176,6 +200,7 @@ freespace run --before data/room/before --after data/room/after --out out/room
 Labels are local by default (CLIP, no API key). For richer sentences with landmarks:
 
 ```bash
+pip install -e ".[claude]"
 export ANTHROPIC_API_KEY=...
 freespace run ... --vlm claude
 ```
@@ -222,13 +247,16 @@ I tested every case below on purpose. These are the known failures and the hones
 | Something moved where the second walk never looked | "Unknown" + a "look here next" spot | By design: no evidence, no claim |
 | Two walks recorded at very different times of day | More false "surface changed" | Same as the light problem above |
 
-All results so far are on synthetic rooms. Real-room results follow.
+All results so far are on synthetic rooms. A plan for a real-data test on 3RScan (rooms rescanned with
+annotated moved and removed objects) is in [docs/3rscan-plan.md](docs/3rscan-plan.md); it needs the dataset's
+access form first.
 
 ## Repo layout
 
 ```
 freespace/  io/stray.py  recon.py  align.py  change.py  objects.py  describe.py  costmap.py  viz.py  report.py  pipeline.py  cli.py  synth.py
-eval/      run_eval.py  (precision / recall / move error against gt.json)
+eval/      run_eval.py  (precision / recall / move error against gt.json)  drift_eval.py  results/
+docs/      drift-eval.md  3rscan-plan.md
 tests/     test_geometry.py  test_synthetic.py
 ```
 

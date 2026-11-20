@@ -1,0 +1,964 @@
+{
+  "spec": "docs/drift-eval.md",
+  "label": "exploratory",
+  "scene": "freespace demo room (7 changes), 120 frames",
+  "alignment": "estimated",
+  "margin_m": 0.1,
+  "summary": [
+    {
+      "drift_deg": 0.0,
+      "drift_cm": 0.0,
+      "mixed_confidence": false,
+      "runs": 3,
+      "precision_mean": 0.952,
+      "recall_mean": 0.952,
+      "false_detections_total": 1,
+      "ray_false_cm2_per_m2_mean": 0.0,
+      "ray_false_cm2_per_m2_max": 0.0,
+      "naive_false_cm2_per_m2_mean": 80.0,
+      "align_trans_m_max": 0.011
+    },
+    {
+      "drift_deg": 0.0,
+      "drift_cm": 0.0,
+      "mixed_confidence": true,
+      "runs": 3,
+      "precision_mean": 0.762,
+      "recall_mean": 0.762,
+      "false_detections_total": 5,
+      "ray_false_cm2_per_m2_mean": 18.4,
+      "ray_false_cm2_per_m2_max": 21.0,
+      "naive_false_cm2_per_m2_mean": 138.9,
+      "align_trans_m_max": 0.025
+    },
+    {
+      "drift_deg": 0.5,
+      "drift_cm": 0.75,
+      "mixed_confidence": true,
+      "runs": 3,
+      "precision_mean": 0.732,
+      "recall_mean": 0.762,
+      "false_detections_total": 6,
+      "ray_false_cm2_per_m2_mean": 37.7,
+      "ray_false_cm2_per_m2_max": 44.5,
+      "naive_false_cm2_per_m2_mean": 138.5,
+      "align_trans_m_max": 0.039
+    },
+    {
+      "drift_deg": 1.0,
+      "drift_cm": 1.5,
+      "mixed_confidence": true,
+      "runs": 3,
+      "precision_mean": 0.632,
+      "recall_mean": 0.714,
+      "false_detections_total": 9,
+      "ray_false_cm2_per_m2_mean": 50.8,
+      "ray_false_cm2_per_m2_max": 74.7,
+      "naive_false_cm2_per_m2_mean": 152.7,
+      "align_trans_m_max": 0.058
+    },
+    {
+      "drift_deg": 2.0,
+      "drift_cm": 3.0,
+      "mixed_confidence": true,
+      "runs": 3,
+      "precision_mean": 0.565,
+      "recall_mean": 0.666,
+      "false_detections_total": 11,
+      "ray_false_cm2_per_m2_mean": 136.2,
+      "ray_false_cm2_per_m2_max": 198.4,
+      "naive_false_cm2_per_m2_mean": 213.6,
+      "align_trans_m_max": 0.103
+    },
+    {
+      "drift_deg": 4.0,
+      "drift_cm": 6.0,
+      "mixed_confidence": true,
+      "runs": 3,
+      "precision_mean": 0.431,
+      "recall_mean": 0.619,
+      "false_detections_total": 17,
+      "ray_false_cm2_per_m2_mean": 911.5,
+      "ray_false_cm2_per_m2_max": 1312.3,
+      "naive_false_cm2_per_m2_mean": 1060.0,
+      "align_trans_m_max": 0.181
+    }
+  ],
+  "runs": [
+    {
+      "drift_deg": 0.0,
+      "drift_m": 0.0,
+      "mixed_confidence": false,
+      "seed": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "n_pred": 7,
+      "n_gt": 7,
+      "false_detections": 0,
+      "missed": [],
+      "detections": [
+        "added unknown object",
+        "added wheel",
+        "modified unknown object",
+        "moved cube",
+        "moved unknown object",
+        "moved unknown object",
+        "removed cube"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 4.72,
+          "ray_false_cm2_per_m2": 0.0,
+          "naive_false_cm2_per_m2": 96.7
+        },
+        "after": {
+          "observed_static_m2": 5.67,
+          "ray_false_cm2_per_m2": 0.0,
+          "naive_false_cm2_per_m2": 66.1
+        },
+        "pooled": {
+          "observed_static_m2": 10.39,
+          "ray_false_cm2_per_m2": 0.0,
+          "ray_false_m2": 0.0,
+          "naive_false_cm2_per_m2": 80.0
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.009,
+        "rot_deg": 0.1
+      },
+      "seconds": 22.2
+    },
+    {
+      "drift_deg": 0.0,
+      "drift_m": 0.0,
+      "mixed_confidence": false,
+      "seed": 1,
+      "precision": 1.0,
+      "recall": 1.0,
+      "n_pred": 7,
+      "n_gt": 7,
+      "false_detections": 0,
+      "missed": [],
+      "detections": [
+        "added cube",
+        "added wheel",
+        "modified unknown object",
+        "moved cube",
+        "moved unknown object",
+        "moved unknown object",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 4.6,
+          "ray_false_cm2_per_m2": 0.0,
+          "naive_false_cm2_per_m2": 97.9
+        },
+        "after": {
+          "observed_static_m2": 5.51,
+          "ray_false_cm2_per_m2": 0.0,
+          "naive_false_cm2_per_m2": 62.4
+        },
+        "pooled": {
+          "observed_static_m2": 10.1,
+          "ray_false_cm2_per_m2": 0.0,
+          "ray_false_m2": 0.0,
+          "naive_false_cm2_per_m2": 78.6
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.011,
+        "rot_deg": 0.11
+      },
+      "seconds": 17.2
+    },
+    {
+      "drift_deg": 0.0,
+      "drift_m": 0.0,
+      "mixed_confidence": false,
+      "seed": 2,
+      "precision": 0.857,
+      "recall": 0.857,
+      "n_pred": 7,
+      "n_gt": 7,
+      "false_detections": 1,
+      "missed": [
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added wheel",
+        "modified unknown object",
+        "modified unknown object",
+        "moved cube",
+        "moved unknown object",
+        "removed cube"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 4.62,
+          "ray_false_cm2_per_m2": 0.0,
+          "naive_false_cm2_per_m2": 86.5
+        },
+        "after": {
+          "observed_static_m2": 5.66,
+          "ray_false_cm2_per_m2": 0.0,
+          "naive_false_cm2_per_m2": 77.3
+        },
+        "pooled": {
+          "observed_static_m2": 10.29,
+          "ray_false_cm2_per_m2": 0.0,
+          "ray_false_m2": 0.0,
+          "naive_false_cm2_per_m2": 81.4
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.01,
+        "rot_deg": 0.11
+      },
+      "seconds": 19.0
+    },
+    {
+      "drift_deg": 0.0,
+      "drift_m": 0.0,
+      "mixed_confidence": true,
+      "seed": 0,
+      "precision": 0.857,
+      "recall": 0.857,
+      "n_pred": 7,
+      "n_gt": 7,
+      "false_detections": 1,
+      "missed": [
+        "moved chair"
+      ],
+      "detections": [
+        "added cube",
+        "added wheel",
+        "modified cube",
+        "modified unknown object",
+        "moved unknown object",
+        "moved unknown object",
+        "removed cube"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 5.08,
+          "ray_false_cm2_per_m2": 40.6,
+          "naive_false_cm2_per_m2": 125.5
+        },
+        "after": {
+          "observed_static_m2": 5.91,
+          "ray_false_cm2_per_m2": 4.2,
+          "naive_false_cm2_per_m2": 141.6
+        },
+        "pooled": {
+          "observed_static_m2": 10.99,
+          "ray_false_cm2_per_m2": 21.0,
+          "ray_false_m2": 0.0231,
+          "naive_false_cm2_per_m2": 134.2
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.025,
+        "rot_deg": 0.33
+      },
+      "seconds": 15.4
+    },
+    {
+      "drift_deg": 0.0,
+      "drift_m": 0.0,
+      "mixed_confidence": true,
+      "seed": 1,
+      "precision": 0.714,
+      "recall": 0.714,
+      "n_pred": 7,
+      "n_gt": 7,
+      "false_detections": 2,
+      "missed": [
+        "moved chair",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added wheel",
+        "modified cube",
+        "modified unknown object",
+        "modified unknown object",
+        "moved unknown object",
+        "removed cube"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 5.1,
+          "ray_false_cm2_per_m2": 45.3,
+          "naive_false_cm2_per_m2": 118.9
+        },
+        "after": {
+          "observed_static_m2": 5.97,
+          "ray_false_cm2_per_m2": 0.0,
+          "naive_false_cm2_per_m2": 155.9
+        },
+        "pooled": {
+          "observed_static_m2": 11.07,
+          "ray_false_cm2_per_m2": 20.9,
+          "ray_false_m2": 0.0231,
+          "naive_false_cm2_per_m2": 138.9
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.025,
+        "rot_deg": 0.33
+      },
+      "seconds": 17.9
+    },
+    {
+      "drift_deg": 0.0,
+      "drift_m": 0.0,
+      "mixed_confidence": true,
+      "seed": 2,
+      "precision": 0.714,
+      "recall": 0.714,
+      "n_pred": 7,
+      "n_gt": 7,
+      "false_detections": 2,
+      "missed": [
+        "moved chair",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added unknown object",
+        "added wheel",
+        "modified cube",
+        "modified unknown object",
+        "moved unknown object",
+        "removed cube",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 5.11,
+          "ray_false_cm2_per_m2": 24.5,
+          "naive_false_cm2_per_m2": 132.1
+        },
+        "after": {
+          "observed_static_m2": 5.81,
+          "ray_false_cm2_per_m2": 3.2,
+          "naive_false_cm2_per_m2": 153.9
+        },
+        "pooled": {
+          "observed_static_m2": 10.92,
+          "ray_false_cm2_per_m2": 13.2,
+          "ray_false_m2": 0.0144,
+          "naive_false_cm2_per_m2": 143.7
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.024,
+        "rot_deg": 0.3
+      },
+      "seconds": 17.9
+    },
+    {
+      "drift_deg": 0.5,
+      "drift_m": 0.0075,
+      "mixed_confidence": true,
+      "seed": 0,
+      "precision": 0.714,
+      "recall": 0.714,
+      "n_pred": 7,
+      "n_gt": 7,
+      "false_detections": 2,
+      "missed": [
+        "moved chair",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added wheel",
+        "modified cube",
+        "modified unknown object",
+        "moved unknown object",
+        "removed cube",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 4.77,
+          "ray_false_cm2_per_m2": 73.4,
+          "naive_false_cm2_per_m2": 102.2
+        },
+        "after": {
+          "observed_static_m2": 6.15,
+          "ray_false_cm2_per_m2": 2.0,
+          "naive_false_cm2_per_m2": 142.2
+        },
+        "pooled": {
+          "observed_static_m2": 10.92,
+          "ray_false_cm2_per_m2": 33.2,
+          "ray_false_m2": 0.0363,
+          "naive_false_cm2_per_m2": 124.7
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.039,
+        "rot_deg": 0.3
+      },
+      "seconds": 18.5
+    },
+    {
+      "drift_deg": 0.5,
+      "drift_m": 0.0075,
+      "mixed_confidence": true,
+      "seed": 1,
+      "precision": 0.857,
+      "recall": 0.857,
+      "n_pred": 7,
+      "n_gt": 7,
+      "false_detections": 1,
+      "missed": [
+        "moved chair"
+      ],
+      "detections": [
+        "added cube",
+        "added wheel",
+        "modified cube",
+        "modified unknown object",
+        "moved unknown object",
+        "moved unknown object",
+        "removed cube"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 4.89,
+          "ray_false_cm2_per_m2": 98.5,
+          "naive_false_cm2_per_m2": 170.1
+        },
+        "after": {
+          "observed_static_m2": 5.92,
+          "ray_false_cm2_per_m2": 0.0,
+          "naive_false_cm2_per_m2": 119.3
+        },
+        "pooled": {
+          "observed_static_m2": 10.81,
+          "ray_false_cm2_per_m2": 44.5,
+          "ray_false_m2": 0.0481,
+          "naive_false_cm2_per_m2": 142.3
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.026,
+        "rot_deg": 0.24
+      },
+      "seconds": 19.5
+    },
+    {
+      "drift_deg": 0.5,
+      "drift_m": 0.0075,
+      "mixed_confidence": true,
+      "seed": 2,
+      "precision": 0.625,
+      "recall": 0.714,
+      "n_pred": 8,
+      "n_gt": 7,
+      "false_detections": 3,
+      "missed": [
+        "moved chair",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added wheel",
+        "modified cube",
+        "modified unknown object",
+        "moved unknown object",
+        "removed cube",
+        "removed unknown object",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 5.21,
+          "ray_false_cm2_per_m2": 68.4,
+          "naive_false_cm2_per_m2": 124.8
+        },
+        "after": {
+          "observed_static_m2": 5.77,
+          "ray_false_cm2_per_m2": 5.4,
+          "naive_false_cm2_per_m2": 170.0
+        },
+        "pooled": {
+          "observed_static_m2": 10.98,
+          "ray_false_cm2_per_m2": 35.3,
+          "ray_false_m2": 0.0388,
+          "naive_false_cm2_per_m2": 148.5
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.037,
+        "rot_deg": 0.48
+      },
+      "seconds": 19.8
+    },
+    {
+      "drift_deg": 1.0,
+      "drift_m": 0.015,
+      "mixed_confidence": true,
+      "seed": 0,
+      "precision": 0.714,
+      "recall": 0.714,
+      "n_pred": 7,
+      "n_gt": 7,
+      "false_detections": 2,
+      "missed": [
+        "moved chair",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added wheel",
+        "modified cube",
+        "modified unknown object",
+        "moved unknown object",
+        "removed cube",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 5.02,
+          "ray_false_cm2_per_m2": 72.2,
+          "naive_false_cm2_per_m2": 100.8
+        },
+        "after": {
+          "observed_static_m2": 6.35,
+          "ray_false_cm2_per_m2": 5.9,
+          "naive_false_cm2_per_m2": 176.1
+        },
+        "pooled": {
+          "observed_static_m2": 11.38,
+          "ray_false_cm2_per_m2": 35.2,
+          "ray_false_m2": 0.04,
+          "naive_false_cm2_per_m2": 142.8
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.058,
+        "rot_deg": 0.31
+      },
+      "seconds": 18.0
+    },
+    {
+      "drift_deg": 1.0,
+      "drift_m": 0.015,
+      "mixed_confidence": true,
+      "seed": 1,
+      "precision": 0.556,
+      "recall": 0.714,
+      "n_pred": 9,
+      "n_gt": 7,
+      "false_detections": 4,
+      "missed": [
+        "moved chair",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added doughnut",
+        "added unknown object",
+        "modified cube",
+        "modified unknown object",
+        "moved unknown object",
+        "removed cube",
+        "removed unknown object",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 4.79,
+          "ray_false_cm2_per_m2": 121.4,
+          "naive_false_cm2_per_m2": 150.1
+        },
+        "after": {
+          "observed_static_m2": 5.92,
+          "ray_false_cm2_per_m2": 37.0,
+          "naive_false_cm2_per_m2": 185.8
+        },
+        "pooled": {
+          "observed_static_m2": 10.71,
+          "ray_false_cm2_per_m2": 74.7,
+          "ray_false_m2": 0.08,
+          "naive_false_cm2_per_m2": 169.8
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.035,
+        "rot_deg": 0.4
+      },
+      "seconds": 18.1
+    },
+    {
+      "drift_deg": 1.0,
+      "drift_m": 0.015,
+      "mixed_confidence": true,
+      "seed": 2,
+      "precision": 0.625,
+      "recall": 0.714,
+      "n_pred": 8,
+      "n_gt": 7,
+      "false_detections": 3,
+      "missed": [
+        "moved chair",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added wheel",
+        "modified cube",
+        "modified unknown object",
+        "moved unknown object",
+        "removed cube",
+        "removed unknown object",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 4.7,
+          "ray_false_cm2_per_m2": 87.8,
+          "naive_false_cm2_per_m2": 114.4
+        },
+        "after": {
+          "observed_static_m2": 6.04,
+          "ray_false_cm2_per_m2": 7.2,
+          "naive_false_cm2_per_m2": 169.6
+        },
+        "pooled": {
+          "observed_static_m2": 10.74,
+          "ray_false_cm2_per_m2": 42.5,
+          "ray_false_m2": 0.0456,
+          "naive_false_cm2_per_m2": 145.5
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.047,
+        "rot_deg": 0.62
+      },
+      "seconds": 18.5
+    },
+    {
+      "drift_deg": 2.0,
+      "drift_m": 0.03,
+      "mixed_confidence": true,
+      "seed": 0,
+      "precision": 0.625,
+      "recall": 0.714,
+      "n_pred": 8,
+      "n_gt": 7,
+      "false_detections": 3,
+      "missed": [
+        "moved chair",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added unknown object",
+        "modified cube",
+        "modified unknown object",
+        "modified unknown object",
+        "moved unknown object",
+        "removed cube",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 5.26,
+          "ray_false_cm2_per_m2": 180.5,
+          "naive_false_cm2_per_m2": 86.7
+        },
+        "after": {
+          "observed_static_m2": 6.92,
+          "ray_false_cm2_per_m2": 84.9,
+          "naive_false_cm2_per_m2": 324.3
+        },
+        "pooled": {
+          "observed_static_m2": 12.18,
+          "ray_false_cm2_per_m2": 126.2,
+          "ray_false_m2": 0.1538,
+          "naive_false_cm2_per_m2": 221.6
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.103,
+        "rot_deg": 0.48
+      },
+      "seconds": 16.4
+    },
+    {
+      "drift_deg": 2.0,
+      "drift_m": 0.03,
+      "mixed_confidence": true,
+      "seed": 1,
+      "precision": 0.444,
+      "recall": 0.571,
+      "n_pred": 9,
+      "n_gt": 7,
+      "false_detections": 5,
+      "missed": [
+        "moved chair",
+        "modified blanket",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added unknown object",
+        "added wheel",
+        "modified cube",
+        "modified unknown object",
+        "moved unknown object",
+        "removed cube",
+        "removed unknown object",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 5.56,
+          "ray_false_cm2_per_m2": 332.8,
+          "naive_false_cm2_per_m2": 247.4
+        },
+        "after": {
+          "observed_static_m2": 6.32,
+          "ray_false_cm2_per_m2": 80.2,
+          "naive_false_cm2_per_m2": 253.3
+        },
+        "pooled": {
+          "observed_static_m2": 11.87,
+          "ray_false_cm2_per_m2": 198.4,
+          "ray_false_m2": 0.2356,
+          "naive_false_cm2_per_m2": 250.5
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.077,
+        "rot_deg": 0.89
+      },
+      "seconds": 18.2
+    },
+    {
+      "drift_deg": 2.0,
+      "drift_m": 0.03,
+      "mixed_confidence": true,
+      "seed": 2,
+      "precision": 0.625,
+      "recall": 0.714,
+      "n_pred": 8,
+      "n_gt": 7,
+      "false_detections": 3,
+      "missed": [
+        "moved chair",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added unknown object",
+        "added wheel",
+        "modified cube",
+        "modified unknown object",
+        "moved unknown object",
+        "removed cube",
+        "removed unknown object",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 5.12,
+          "ray_false_cm2_per_m2": 141.7,
+          "naive_false_cm2_per_m2": 122.2
+        },
+        "after": {
+          "observed_static_m2": 6.41,
+          "ray_false_cm2_per_m2": 38.0,
+          "naive_false_cm2_per_m2": 205.8
+        },
+        "pooled": {
+          "observed_static_m2": 11.52,
+          "ray_false_cm2_per_m2": 84.1,
+          "ray_false_m2": 0.0969,
+          "naive_false_cm2_per_m2": 168.7
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.086,
+        "rot_deg": 1.01
+      },
+      "seconds": 19.8
+    },
+    {
+      "drift_deg": 4.0,
+      "drift_m": 0.06,
+      "mixed_confidence": true,
+      "seed": 0,
+      "precision": 0.417,
+      "recall": 0.714,
+      "n_pred": 12,
+      "n_gt": 7,
+      "false_detections": 7,
+      "missed": [
+        "moved chair",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added object",
+        "added unknown object",
+        "added unknown object",
+        "added unknown object",
+        "added unknown object",
+        "modified unknown object",
+        "modified unknown object",
+        "modified unknown object",
+        "moved unknown object",
+        "removed crate",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 5.8,
+          "ray_false_cm2_per_m2": 662.8,
+          "naive_false_cm2_per_m2": 586.3
+        },
+        "after": {
+          "observed_static_m2": 7.76,
+          "ray_false_cm2_per_m2": 537.1,
+          "naive_false_cm2_per_m2": 935.7
+        },
+        "pooled": {
+          "observed_static_m2": 13.56,
+          "ray_false_cm2_per_m2": 590.9,
+          "ray_false_m2": 0.8013,
+          "naive_false_cm2_per_m2": 786.3
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.18,
+        "rot_deg": 0.94
+      },
+      "seconds": 19.2
+    },
+    {
+      "drift_deg": 4.0,
+      "drift_m": 0.06,
+      "mixed_confidence": true,
+      "seed": 1,
+      "precision": 0.5,
+      "recall": 0.714,
+      "n_pred": 10,
+      "n_gt": 7,
+      "false_detections": 5,
+      "missed": [
+        "moved chair",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added unknown object",
+        "added unknown object",
+        "added unknown object",
+        "modified cube",
+        "modified unknown object",
+        "modified unknown object",
+        "moved unknown object",
+        "removed unknown object",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 5.22,
+          "ray_false_cm2_per_m2": 2311.6,
+          "naive_false_cm2_per_m2": 2349.9
+        },
+        "after": {
+          "observed_static_m2": 5.29,
+          "ray_false_cm2_per_m2": 327.2,
+          "naive_false_cm2_per_m2": 738.3
+        },
+        "pooled": {
+          "observed_static_m2": 10.51,
+          "ray_false_cm2_per_m2": 1312.3,
+          "ray_false_m2": 1.3788,
+          "naive_false_cm2_per_m2": 1538.4
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.181,
+        "rot_deg": 2.07
+      },
+      "seconds": 21.4
+    },
+    {
+      "drift_deg": 4.0,
+      "drift_m": 0.06,
+      "mixed_confidence": true,
+      "seed": 2,
+      "precision": 0.375,
+      "recall": 0.429,
+      "n_pred": 8,
+      "n_gt": 7,
+      "false_detections": 5,
+      "missed": [
+        "moved chair",
+        "added ring sculpture",
+        "modified blanket",
+        "moved shoebox"
+      ],
+      "detections": [
+        "added cube",
+        "added unknown object",
+        "modified unknown object",
+        "modified unknown object",
+        "moved unknown object",
+        "removed cube",
+        "removed unknown object",
+        "removed unknown object"
+      ],
+      "unobserved_reported_as_removed": 0,
+      "false_change": {
+        "before": {
+          "observed_static_m2": 5.93,
+          "ray_false_cm2_per_m2": 980.9,
+          "naive_false_cm2_per_m2": 978.8
+        },
+        "after": {
+          "observed_static_m2": 6.84,
+          "ray_false_cm2_per_m2": 701.4,
+          "naive_false_cm2_per_m2": 748.0
+        },
+        "pooled": {
+          "observed_static_m2": 12.76,
+          "ray_false_cm2_per_m2": 831.2,
+          "ray_false_m2": 1.0606,
+          "naive_false_cm2_per_m2": 855.2
+        }
+      },
+      "alignment_error": {
+        "trans_m": 0.154,
+        "rot_deg": 2.15
+      },
+      "seconds": 21.7
+    }
+  ]
+}

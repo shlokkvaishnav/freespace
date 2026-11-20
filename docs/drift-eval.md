@@ -67,4 +67,36 @@ Whatever happens, the README will report the numbers as exploratory and syntheti
 
 ## Outcome
 
-To be filled in after the run.
+Run on 2026-11-21, 18 runs, about 15 minutes in total on a laptop CPU (about 20 s of pipeline time per run). Raw numbers:
+[`eval/results/drift.json`](../eval/results/drift.json). Mean over 3 seeds:
+
+| drift (yaw / position) | confidence | precision | recall | false detections (3 runs) | false change, ray test (cm²/m²) | same points, naive diff | worst alignment error |
+|---|---|---|---|---|---|---|---|
+| 0 / 0 | all 2 | 0.95 | 0.95 | 1 | 0 | 80 | 1.1 cm |
+| 0 / 0 | mixed | 0.76 | 0.76 | 5 | 18 | 139 | 2.5 cm |
+| 0.5° / 0.75 cm | mixed | 0.73 | 0.76 | 6 | 38 | 139 | 3.9 cm |
+| 1° / 1.5 cm | mixed | 0.63 | 0.71 | 9 | 51 | 153 | 5.8 cm |
+| 2° / 3 cm | mixed | 0.57 | 0.67 | 11 | 136 | 214 | 10.3 cm |
+| 4° / 6 cm | mixed | 0.43 | 0.62 | 17 | 912 | 1060 | 18.1 cm |
+
+What this shows:
+
+- **Even the old generator is not 1.00 / 1.00 on every seed.** Seeds 0 and 1 give 7 of 7; seed 2
+  reports the 8 cm shoebox slide as "modified" instead of "moved". The README's 1.00 / 1.00 is seed 0.
+- **Mixed confidence alone costs one change in every run**: the moved chair is reported as
+  "modified" instead of "moved" (its rigid fit gets worse than the 5 cm limit), and the shoebox
+  slide is not reported as moved in 2 of 3 runs. The surface test itself stays clean: 18 cm² of false change per m².
+- **Drift hurts mostly through the 'moved' logic and the alignment.** Up to 1° / 1.5 cm (inside
+  the range I assumed for a room walk) recall stays at 0.71-0.76 and the false-change rate is
+  under 1% of the unchanged surface (51 cm²/m²). At 2° / 3 cm it is about 1.4% and false objects
+  appear; at 4° / 6 cm about 9%, and the ray test is barely better than the naive diff on the same
+  points.
+- Most misses are status errors (moved → modified), not objects that were not found. The removed
+  box, added suitcase, added ring and swung door were found in every run up to 2°; with more drift
+  the small shoebox disappears entirely in some runs.
+- The expectation written above ("little change up to 1°") was too optimistic for objects:
+  precision falls from 0.76 to 0.63 by 1°. For the false-change rate it held.
+
+Limits of this study: one synthetic room, 3 seeds per setting, drift and confidence models that are
+my assumptions. It says which parts break first (the move test, then the alignment), not how
+Freespace does on a real phone. The next step is real data (`docs/3rscan-plan.md`).

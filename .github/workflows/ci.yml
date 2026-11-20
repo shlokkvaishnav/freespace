@@ -1,14 +1,19 @@
 name: CI
 
+# Runs only when code changes (not for README or docs edits). Installs from the lock file,
+# so a new release of open3d, torch or transformers cannot break it on its own.
 on:
   push:
     branches: [main]
+    paths-ignore: ["**.md", "docs/**", "assets/**", "eval/results/**"]
   pull_request:
     branches: [main]
+    paths-ignore: ["**.md", "docs/**", "assets/**", "eval/results/**"]
+  workflow_dispatch:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
 
@@ -17,15 +22,13 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+          cache-dependency-path: requirements.lock
 
       - name: Install system libraries for Open3D
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libgomp1
 
-      - name: Install CPU PyTorch
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-      - name: Install package
-        run: pip install -e ".[dev]"
+      - name: Install package (pinned, CPU PyTorch)
+        run: pip install -c requirements.lock -e ".[dev]" --extra-index-url https://download.pytorch.org/whl/cpu
 
       - name: Run tests
         run: pytest tests/ -v --tb=short

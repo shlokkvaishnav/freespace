@@ -1,0 +1,16 @@
+{
+  "attribution": false,
+  "hooks": {
+    "SessionStart": [
+      {"hooks": [{"type": "command", "command": "bash \"$CLAUDE_PROJECT_DIR/.claude/hooks/session_start.sh\""}]}
+    ]
+  },
+  "permissions": {
+    "deny": ["Read(data/**)", "Read(out/**)"],
+    "ask": ["Bash(git push:*)"],
+    "allow": [
+      "Bash(git status:*)", "Bash(git log:*)", "Bash(git diff:*)", "Bash(git branch:*)",
+      "Bash(git show:*)", "Bash(ls:*)", "Bash(grep:*)", "Bash(wc:*)", "Bash(pytest tests/:*)"
+    ]
+  }
+}

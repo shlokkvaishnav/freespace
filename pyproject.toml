@@ -15,12 +15,13 @@ dependencies = [
     "rich>=13",
     "pillow>=10",
     "rerun-sdk>=0.18",
-    "torch>=2.3",
+    "torch>=2.6",
     "transformers>=4.44",
-    "anthropic>=0.40",
+    "safetensors>=0.4",
 ]
 
 [project.optional-dependencies]
+claude = ["anthropic>=0.40"]            # optional labeller: --vlm claude
 lightglue = ["lightglue @ git+https://github.com/cvg/LightGlue.git"]
 dev = ["pytest>=8"]
 

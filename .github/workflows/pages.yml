@@ -1,10 +1,9 @@
 name: Demo report
 
-# Rebuild the demo report on every push to main and publish it on GitHub Pages,
-# so the live page always shows what the current code does.
+# Manual only (Actions tab -> Demo report -> Run workflow). It rebuilds the demo report from
+# the pinned versions in requirements.lock and publishes it on GitHub Pages. It does not run
+# on push, so a finished project makes no scheduled or automatic runs.
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -18,7 +17,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -27,15 +26,13 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
+          cache-dependency-path: requirements.lock
 
       - name: Install system libraries for Open3D
         run: sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libgomp1
 
-      - name: Install CPU PyTorch
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-
-      - name: Install package
-        run: pip install -e .
+      - name: Install package (pinned, CPU PyTorch)
+        run: pip install -c requirements.lock -e . --extra-index-url https://download.pytorch.org/whl/cpu
 
       - name: Run the demo (synthetic room, every kind of change)
         run: freespace demo --no-open | tee demo.log
@@ -53,7 +50,7 @@ jobs:
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -193,9 +193,75 @@ def trajectory(kind: str, n: int) -> list[np.ndarray]:
     return poses
 
 
-def write_stray(folder: Path, renderer: Renderer, poses: list[np.ndarray], G: np.ndarray, seed: int):
-    """Render poses (true world) and write them in a session frame: T_session = G @ T_true."""
+# ---------------------------------------------------------------- sensor realism (off by default)
+#
+# The magnitudes below are ASSUMPTIONS, not measurements. Apple publishes no drift figure for
+# ARKit. Visual-inertial odometry is usually described as drifting about 1% of the distance walked;
+# a 3-5 m room walk then ends 1-5 cm and about 0.5-2 degrees of heading away from the truth.
+# Roll and pitch stay small because the IMU observes gravity, so they get a tenth of the yaw drift.
+
+def drift_errors(n: int, rot_deg: float, trans_m: float, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    """Random-walk pose errors for n frames: (n, 3, 3) rotations and (n, 3) position offsets.
+
+    The walk starts at zero (frame 0 is the session origin) and its standard deviation at the last
+    frame is `rot_deg` for yaw (about +Y) and `trans_m` per horizontal axis (half that vertically)."""
+    if n < 2 or (rot_deg == 0 and trans_m == 0):
+        return np.tile(np.eye(3), (n, 1, 1)), np.zeros((n, 3))
+    k = np.sqrt(n - 1)
+    rot_sd = np.array([0.1, 1.0, 0.1]) * rot_deg / k   # roll (x), yaw (y, up), pitch (z), per step
+    pos_sd = np.array([1.0, 0.5, 1.0]) * trans_m / k
+    steps_r = rng.normal(0, 1, (n, 3)) * rot_sd
+    steps_t = rng.normal(0, 1, (n, 3)) * pos_sd
+    steps_r[0] = steps_t[0] = 0
+    R = Rotation.from_euler("xyz", np.cumsum(steps_r, 0), degrees=True).as_matrix()
+    return R, np.cumsum(steps_t, 0)
+
+
+def apply_drift(poses: list[np.ndarray], R_err: np.ndarray, t_err: np.ndarray) -> list[np.ndarray]:
+    """The poses the phone would report: each camera turned by R_err about its own centre and shifted by t_err."""
+    out = []
+    for T, R, t in zip(poses, R_err, t_err):
+        D = T.copy()
+        D[:3, :3] = R @ T[:3, :3]
+        D[:3, 3] = T[:3, 3] + t
+        out.append(D)
+    return out
+
+
+def mixed_confidence(depth: np.ndarray, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    """Confidence 0/1/2 like the ARKit LiDAR map, and the depth that goes with it. Rules (assumptions,
+    after how ARKit's confidence map looks in practice, not from a published model):
+      - depth edges (3x3 jump > 5%) get 0 and a 'flying pixel' depth between the two sides;
+        a fifth of them get 1 instead, so some bad depth passes the default filter (min_confidence 1);
+      - depth beyond 3.5 m and a random 5% of the other pixels get 1, with 3x the depth noise;
+      - the rest keep 2."""
+    from scipy.ndimage import maximum_filter, minimum_filter
+
+    valid = depth > 0
+    hi = maximum_filter(depth, size=3)
+    lo = minimum_filter(np.where(valid, depth, 1e3), size=3)
+    edge = valid & (hi - lo > 0.05 * np.maximum(lo, 0.3))
+    conf = np.full(depth.shape, 2, np.uint8)
+    medium = valid & ~edge & ((depth > 3.5) | (rng.random(depth.shape) < 0.05))
+    conf[medium] = 1
+    conf[edge] = np.where(rng.random(depth.shape) < 0.2, 1, 0)[edge]
+    out = depth.copy()
+    out[medium] += rng.normal(0, np.sqrt(8) * (0.004 + 0.004 * depth[medium]))  # with the base noise: 3x the sd
+    out[edge] = (lo + rng.random(depth.shape) * (hi - lo))[edge]
+    conf[~valid] = 0
+    return out.astype(np.float32), conf
+
+
+def write_stray(folder: Path, renderer: Renderer, poses: list[np.ndarray], G: np.ndarray, seed: int,
+                drift_deg: float = 0.0, drift_m: float = 0.0, mixed_conf: bool = False):
+    """Render poses (true world) and write them in a session frame: T_session = G @ T_true.
+
+    drift_deg / drift_m > 0 write drifted poses (images still come from the true poses);
+    mixed_conf writes a realistic 0/1/2 confidence map instead of all 2. Both use their own
+    random stream, so with the defaults the output is the same as before they existed."""
     rng = np.random.default_rng(seed)
+    aux = np.random.default_rng([seed, 7919])
+    written = apply_drift(poses, *drift_errors(len(poses), drift_deg, drift_m, aux))
     (folder / "depth").mkdir(parents=True, exist_ok=True)
     (folder / "confidence").mkdir(exist_ok=True)
     vw = cv2.VideoWriter(str(folder / "rgb.mp4"), cv2.VideoWriter_fourcc(*"mp4v"), 30, (RGB_W, RGB_H))
@@ -203,9 +269,12 @@ def write_stray(folder: Path, renderer: Renderer, poses: list[np.ndarray], G: np
     for i, T in enumerate(poses):
         vw.write(cv2.cvtColor(renderer.rgb(T), cv2.COLOR_RGB2BGR))
         d = renderer.depth(T, rng)
-        cv2.imwrite(str(folder / "depth" / f"{i:06d}.png"), (d * 1000).astype(np.uint16))
-        cv2.imwrite(str(folder / "confidence" / f"{i:06d}.png"), np.full(d.shape, 2, np.uint8))
-        Ts = G @ T
+        conf = np.full(d.shape, 2, np.uint8)
+        if mixed_conf:
+            d, conf = mixed_confidence(d, aux)
+        cv2.imwrite(str(folder / "depth" / f"{i:06d}.png"), (np.clip(d, 0, 65) * 1000).astype(np.uint16))
+        cv2.imwrite(str(folder / "confidence" / f"{i:06d}.png"), conf)
+        Ts = G @ written[i]
         q = Rotation.from_matrix(Ts[:3, :3]).as_quat()
         rows.append([i / 30, i, *Ts[:3, 3], *q])
     vw.release()
@@ -222,20 +291,34 @@ def yaw_transform(deg: float, t: tuple[float, float, float]) -> np.ndarray:
     return G
 
 
+SESSION_B = yaw_transform(37.0, (0.8, 0.0, -1.3))  # B session frame differs from A
+
+
+def scenes(odd: bool = False, small: bool = False, flat: bool = False, hinge: bool = False,
+           folded: bool = False) -> tuple[list[Obj], list[Obj]]:
+    """Objects of the 'before' and 'after' room for the make_pair options."""
+    scene_a = SCENE_A + ([SHOEBOX_A] if small else []) + ([DOOR_A] if hinge else []) + ([BLANKET_A] if folded else [])
+    scene_b = SCENE_B + ([ODD] if odd else []) + ([SHOEBOX_B] if small else []) + ([BOOK] if flat else []) + ([DOOR_B] if hinge else []) + ([BLANKET_B] if folded else [])
+    return scene_a, scene_b
+
+
 def make_pair(out: str | Path, n_frames: int = 120, seed: int = 0, odd: bool = False, small: bool = False,
-              flat: bool = False, hinge: bool = False, folded: bool = False) -> Path:
+              flat: bool = False, hinge: bool = False, folded: bool = False,
+              drift_deg: float = 0.0, drift_m: float = 0.0, mixed_conf: bool = False) -> Path:
     """odd=True also adds an object with a shape and colour outside any word list.
     small=True also puts a shoebox on the table and moves it by 8 cm.
     flat=True also adds a 1.5 cm magazine lying on the floor.
     hinge=True adds a door panel that swings 70 degrees about its edge.
-    folded=True adds a blanket on the floor that is folded in half (a non-rigid change)."""
+    folded=True adds a blanket on the floor that is folded in half (a non-rigid change).
+    drift_deg / drift_m add ARKit-like pose drift to both walks (see drift_errors); mixed_conf adds
+    low- and medium-confidence depth (see mixed_confidence). All three are off by default."""
     out = Path(out)
-    scene_a = SCENE_A + ([SHOEBOX_A] if small else []) + ([DOOR_A] if hinge else []) + ([BLANKET_A] if folded else [])
-    scene_b = SCENE_B + ([ODD] if odd else []) + ([SHOEBOX_B] if small else []) + ([BOOK] if flat else []) + ([DOOR_B] if hinge else []) + ([BLANKET_B] if folded else [])
+    scene_a, scene_b = scenes(odd, small, flat, hinge, folded)
     G_a = np.eye(4)
-    G_b = yaw_transform(37.0, (0.8, 0.0, -1.3))  # B session frame differs from A
-    write_stray(out / "before", Renderer(scene_a), trajectory("A", n_frames), G_a, seed)
-    write_stray(out / "after", Renderer(scene_b), trajectory("B", n_frames), G_b, seed + 1)
+    G_b = SESSION_B
+    real = dict(drift_deg=drift_deg, drift_m=drift_m, mixed_conf=mixed_conf)
+    write_stray(out / "before", Renderer(scene_a), trajectory("A", n_frames), G_a, seed, **real)
+    write_stray(out / "after", Renderer(scene_b), trajectory("B", n_frames), G_b, seed + 1, **real)
 
     def centre(o: Obj, G: np.ndarray) -> list[float]:
         p = np.array([o.pos[0], o.base + o.size[1] / 2, o.pos[1]])

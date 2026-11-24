@@ -95,7 +95,7 @@ def write_html(res, summary: dict, path: Path) -> None:
 
 TEMPLATE = r"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Room Change Report</title>
+<title>Freespace Room Change Report</title>
 <style>
 :root{--bg:#f6f6f4;--panel:#ffffff;--ink:#1d1d1f;--muted:#6b6b70;--line:#e3e3e0;--canvas:#ececea}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){--bg:#141416;--panel:#1d1d20;--ink:#ececef;--muted:#9a9aa2;--line:#2c2c31;--canvas:#18181b}}
@@ -132,7 +132,12 @@ table{border-collapse:collapse;width:100%;font-size:12px}td{padding:2px 0}td:las
 const D = /*DATA*/;
 const dec = (s, T) => { const b = atob(s), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return new T(u.buffer); };
 const view = document.getElementById('view');
-const renderer = new THREE.WebGLRenderer({antialias: true});
+let renderer, focus = () => {};
+try { renderer = new THREE.WebGLRenderer({antialias: true}); } catch (e) { renderer = null; }
+if (!renderer) {
+  view.innerHTML = '<p class="muted" style="padding:16px">The 3D view could not start. It needs WebGL and the three.js scripts from cdnjs.cloudflare.com and cdn.jsdelivr.net. Check that your browser allows them, then reload. The change cards below still work.</p>';
+}
+if (renderer) {
 renderer.setPixelRatio(window.devicePixelRatio);
 view.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
@@ -183,15 +188,16 @@ const ctr = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vec
 const upv = new THREE.Vector3(...D.up);
 camera.position.copy(ctr).add(new THREE.Vector3(size*0.35, 0, size*0.35)).add(upv.clone().multiplyScalar(size*0.45));
 controls.target.copy(ctr); controls.update();
-function focus(c){
+focus = function(c){
   const p = new THREE.Vector3(...c.boxes[c.boxes.length-1].center);
   const dir = camera.position.clone().sub(controls.target).normalize();
   controls.target.copy(p); camera.position.copy(p).add(dir.multiplyScalar(2.2)); controls.update();
-}
+};
 function resize(){ const w = view.clientWidth, h = view.clientHeight; renderer.setSize(w, h); camera.aspect = w/h; camera.updateProjectionMatrix(); }
 window.addEventListener('resize', resize); resize();
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', bg);
 (function loop(){ requestAnimationFrame(loop); renderer.render(scene, camera); })();
+}
 
 // side panel
 const side = document.getElementById('side');
